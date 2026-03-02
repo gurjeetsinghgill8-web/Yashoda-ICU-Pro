@@ -1,5 +1,6 @@
 import streamlit as st
 from google import genai
+from google.genai import types  # 🚨 NAYA IMPORT: AI ko PDF padhane ke liye!
 import os
 import requests
 import pandas as pd
@@ -70,11 +71,10 @@ if not client:
     st.error("🚨 AI Engine API Key is missing! Please go to the '⚙️ Master Admin' tab to enter your API Key.")
 
 # ==========================================
-# 🧠 THE AUTO-PILOT ENGINE (Typo Fixed)
+# 🧠 THE AUTO-PILOT ENGINE
 # ==========================================
 def smart_generate(client_obj, contents):
     """Tries the exact, verified 3 AI Engines automatically to bypass errors."""
-    # SIRF YEH 3 ENGINES EXIST KARTE HAIN AUR FREE HAIN:
     models_to_try = [
         'gemini-2.0-flash', 
         'gemini-1.5-flash', 
@@ -89,9 +89,8 @@ def smart_generate(client_obj, contents):
                 return res.text.replace('**', '')
         except Exception as e:
             errors.append(f"[{m} FAILED]: {str(e)}")
-            continue # Fail hua toh agle engine par jump karo
+            continue
     
-    # Agar teeno fail ho gaye, toh saaf-saaf wajah batao
     raise Exception(f"All Engines Failed. Exact Reasons:\n" + "\n".join(errors))
 
 # ==========================================
@@ -204,10 +203,20 @@ with tab1:
                     TOPICS: Topic 1, Topic 2, Topic 3
                     """
                     content_to_send = [prompt]
-                    if cam_pic: content_to_send.append(Image.open(cam_pic))
+                    
+                    if cam_pic: 
+                        content_to_send.append(Image.open(cam_pic))
+                    
+                    # 🚨 THE PDF SILENT IGNORE BUG FIX
                     if uploaded_files:
                         for f in uploaded_files:
-                            if f.name.lower().endswith(('png', 'jpg', 'jpeg')): content_to_send.append(Image.open(f))
+                            if f.name.lower().endswith(('png', 'jpg', 'jpeg')): 
+                                content_to_send.append(Image.open(f))
+                            elif f.name.lower().endswith('.pdf'):
+                                # Ab AI PDF reports ko bhi theek se padh lega!
+                                content_to_send.append(
+                                    types.Part.from_bytes(data=f.read(), mime_type='application/pdf')
+                                )
 
                     res_text = smart_generate(client, content_to_send)
                     
@@ -276,39 +285,47 @@ with tab2:
                 st.markdown("### 🖨️ Final PDF Generation")
                 col1, col2, col3, col4 = st.columns(4)
                 
+                # 🚨 THE GHOST DOWNLOAD BUG FIX: Streamlit mein nested buttons hata diye!
                 with col1:
-                    if st.button("📄 Case Summary PDF", key=f"case_{pt_name}"):
-                        pdf_path = generate_true_pdf("INTERIM CASE SUMMARY", pt_name, edited_summary)
-                        with open(pdf_path, "rb") as pdf_file:
-                            st.download_button("📥 Download Case PDF", data=pdf_file, file_name=f"{pt_name}_CaseSummary.pdf", mime="application/pdf", key=f"dl_case_{pt_name}")
+                    # Direct generation allowed kyunki isme AI nahi lagta
+                    pdf_path = generate_true_pdf("INTERIM CASE SUMMARY", pt_name, edited_summary)
+                    with open(pdf_path, "rb") as pdf_file:
+                        st.download_button("📄 Download Case PDF", data=pdf_file, file_name=f"{pt_name}_CaseSummary.pdf", mime="application/pdf", key=f"dl_case_{pt_name}")
 
                 with col2:
-                    if st.button("📝 Discharge Summary PDF", key=f"disc_{pt_name}"):
+                    if st.button("📝 Draft Discharge AI", key=f"btn_disc_{pt_name}"):
                         if not client: st.error("API Key missing!")
                         else:
                             with st.spinner("Drafting Final Discharge..."):
                                 try:
                                     prompt = f"Write a final Discharge Summary based on this: {edited_summary}. DO NOT USE ANY MARKDOWN ASTERISKS (**). PLAIN TEXT ONLY."
                                     res_text = smart_generate(client, [prompt])
-                                    pdf_path = generate_true_pdf("DISCHARGE SUMMARY", pt_name, res_text)
-                                    with open(pdf_path, "rb") as pdf_file:
-                                        st.download_button("📥 Download Discharge PDF", data=pdf_file, file_name=f"{pt_name}_Discharge.pdf", mime="application/pdf", key=f"dl_disc_{pt_name}")
+                                    st.session_state[f"disc_ready_{pt_name}"] = res_text
                                 except Exception as e:
                                     st.error(f"🚨 Auto-Pilot Error:\n{str(e)}")
+                    
+                    # Pehle text background mein aayega, tab hi download button jagega aur gayab nahi hoga!
+                    if f"disc_ready_{pt_name}" in st.session_state:
+                        pdf_path = generate_true_pdf("DISCHARGE SUMMARY", pt_name, st.session_state[f"disc_ready_{pt_name}"])
+                        with open(pdf_path, "rb") as pdf_file:
+                            st.download_button("📥 Get Discharge PDF", data=pdf_file, file_name=f"{pt_name}_Discharge.pdf", mime="application/pdf", key=f"dl_disc_{pt_name}")
 
                 with col3:
-                    if st.button("🗣️ Attendant Counseling", key=f"rel_{pt_name}"):
+                    if st.button("🗣️ Draft Counseling", key=f"btn_rel_{pt_name}"):
                         if not client: st.error("API Key missing!")
                         else:
                             with st.spinner("Translating to Hinglish..."):
                                 try:
                                     prompt = f"Based on: {edited_summary}. Write an ICU Patient Counseling Sheet for relatives in simple Hinglish. 4 Sections: 1. Bimari 2. Current Condition 3. Progress 4. Prognosis. NO MEDICAL JARGON. NO MARKDOWN ASTERISKS."
                                     res_text = smart_generate(client, [prompt])
-                                    pdf_path = generate_true_pdf("ICU ATTENDANT BRIEF", pt_name, res_text)
-                                    with open(pdf_path, "rb") as pdf_file:
-                                        st.download_button("📥 Download Counseling PDF", data=pdf_file, file_name=f"{pt_name}_Counseling.pdf", mime="application/pdf", key=f"dl_rel_{pt_name}")
+                                    st.session_state[f"rel_ready_{pt_name}"] = res_text
                                 except Exception as e:
                                     st.error(f"🚨 Auto-Pilot Error:\n{str(e)}")
+                                    
+                    if f"rel_ready_{pt_name}" in st.session_state:
+                        pdf_path = generate_true_pdf("ICU ATTENDANT BRIEF", pt_name, st.session_state[f"rel_ready_{pt_name}"])
+                        with open(pdf_path, "rb") as pdf_file:
+                            st.download_button("📥 Get Counseling PDF", data=pdf_file, file_name=f"{pt_name}_Counseling.pdf", mime="application/pdf", key=f"dl_rel_{pt_name}")
 
                 with col4:
                     if st.button("🛑 DISCHARGE & ARCHIVE", type="primary", key=f"done_{pt_name}"):
