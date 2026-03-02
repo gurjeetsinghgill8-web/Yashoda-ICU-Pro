@@ -16,14 +16,21 @@ st.set_page_config(page_title="Yashoda ICU Pro - Space Optimized", layout="wide"
 # --- APNA GOOGLE SHEET URL YAHAN DALEIN ---
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwIBxF5vh7uvdDnRblpyhfpQCtpcxWN3MlGjbt3SUeEO5KH3c9AIcU91BzeKVQKCn_L/exec" 
 
-api_key = os.getenv("GEMINI_API_KEY")
-if not api_key:
-    st.error("🚨 GEMINI_API_KEY is missing in Cloud Secrets!")
-    st.stop()
-client = genai.Client(api_key=api_key)
+# ==========================================
+# 2. DYNAMIC API KEY (THE MASTER JUGAAD)
+# ==========================================
+if 'api_key' not in st.session_state:
+    st.session_state.api_key = os.getenv("GEMINI_API_KEY")
+
+client = None
+if st.session_state.api_key:
+    try:
+        client = genai.Client(api_key=st.session_state.api_key)
+    except Exception:
+        pass
 
 # ==========================================
-# 2. SECURITY & SMART ACCESS (PIN SYSTEM)
+# 3. SECURITY & SMART ACCESS (PIN SYSTEM)
 # ==========================================
 DOCTOR_PINS = {
     "1234": "Dr. G.S. Gill (Cardiac Physician)",
@@ -61,8 +68,11 @@ with col_head3:
         st.rerun()
 st.markdown("---")
 
+if not client:
+    st.error("🚨 AI Engine API Key is missing! Dr. Gill, please go to the 'Master Admin' tab to enter a new key.")
+
 # ==========================================
-# 3. CLOUD SYNC & TRUE PDF ENGINE
+# 4. CLOUD SYNC & TRUE PDF ENGINE
 # ==========================================
 def sync_from_cloud():
     if not WEBHOOK_URL.startswith("http"): return
@@ -106,7 +116,6 @@ def generate_true_pdf(title, patient_name, text_content):
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(0, 10, txt=title, ln=True, align='C')
     
-    # STRICT HIERARCHY IN PDF
     pdf.set_font("Arial", 'B', 11)
     pdf.cell(0, 8, txt="Admitted Under: Dr. Alok Sehgal (Senior Interventional Cardiologist)", ln=True)
     pdf.cell(0, 8, txt=f"Attending/Duty Doctor: {st.session_state.logged_in_doctor}", ln=True)
@@ -115,7 +124,6 @@ def generate_true_pdf(title, patient_name, text_content):
     pdf.ln(5)
     
     pdf.set_font("Arial", size=11)
-    # Aggressive cleanup of markdown for professional printing
     clean_text = text_content.replace('**', '').replace('*', '-').replace('#', '')
     clean_text = clean_text.encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 7, txt=clean_text)
@@ -126,12 +134,20 @@ def generate_true_pdf(title, patient_name, text_content):
     return filepath
 
 # ==========================================
-# 4. APP ARCHITECTURE (The 4 Master Tabs)
+# 5. APP ARCHITECTURE (Dynamic Tabs)
 # ==========================================
-tab1, tab2, tab3, tab4 = st.tabs(["🩺 ICU Frontline", "📊 HOD Dashboard & Docs", "📉 Flowsheet & Trends", "🔬 Academic Vault"])
+tab_titles = ["🩺 ICU Frontline", "📊 HOD Dashboard & Docs", "📉 Flowsheet & Trends", "🔬 Academic Vault"]
+
+# SECRET ADMIN CHECK: Only show 5th tab if it's Dr. Gill
+is_admin = (st.session_state.logged_in_doctor == "Dr. G.S. Gill (Cardiac Physician)")
+if is_admin:
+    tab_titles.append("⚙️ Master Admin")
+
+tabs = st.tabs(tab_titles)
+tab1, tab2, tab3, tab4 = tabs[0], tabs[1], tabs[2], tabs[3]
 
 # ---------------------------------------------------------
-# TAB 1: THE ICU FRONTLINE (Jumbo Box & Guidelines)
+# TAB 1: THE ICU FRONTLINE
 # ---------------------------------------------------------
 with tab1:
     col_pt1, col_pt2 = st.columns(2)
@@ -145,7 +161,6 @@ with tab1:
             p_name = st.selectbox("Select Existing Patient:", [""] + active_pts) if active_pts else ""
 
     st.subheader("📝 Clinical Notes & Vitals (The Jumbo Window)")
-    st.info("💡 Tip: Press `Windows + H`. Dictate vitals & symptoms in one breath.")
     notes = st.text_area("Dictate complete clinical picture here:", height=200)
 
     st.subheader("📸 Attach ECG, X-Ray, or Lab Reports")
@@ -156,28 +171,26 @@ with tab1:
         uploaded_files = st.file_uploader("Upload images/PDFs from gallery", type=['jpg', 'jpeg', 'png', 'pdf'], accept_multiple_files=True)
 
     if st.button("🚨 Analyze Patient & Generate Treatment Plan", type="primary", use_container_width=True):
-        if p_name and notes:
+        if not client:
+            st.error("API Key is missing! Cannot analyze.")
+        elif p_name and notes:
             with st.spinner("Analyzing..."):
-                prompt = f"""
-                You are the Senior ICU Clinical AI.
-                Patient: {p_name}. Notes: {notes}
-                
-                Provide: 1. EXTRACTED VITALS 2. CRITICAL ALERTS 3. DIFFERENTIAL DIAGNOSIS 4. FINAL WORKING DIAGNOSIS 5. MASTER TREATMENT PLAN 6. DDI & SAFETY ALERTS.
-                IMPORTANT: DO NOT USE ANY MARKDOWN ASTERISKS (**). WRITE IN PLAIN TEXT ONLY.
-                
-                At the end, suggest 3 specific Medical Topics, formatted exactly:
-                TOPICS: Topic 1, Topic 2, Topic 3
-                """
-                content_to_send = [prompt]
-                if cam_pic: content_to_send.append(Image.open(cam_pic))
-                if uploaded_files:
-                    for f in uploaded_files:
-                        if f.name.lower().endswith(('png', 'jpg', 'jpeg')):
-                            content_to_send.append(Image.open(f))
-
                 try:
-                    response = client.models.generate_content(model='gemini-2.5-flash', contents=content_to_send)
-                    res_text = response.text.replace('**', '') # Force remove stars
+                    prompt = f"""
+                    You are the Senior ICU Clinical AI. Patient: {p_name}. Notes: {notes}
+                    Provide: 1. EXTRACTED VITALS 2. CRITICAL ALERTS 3. DIFFERENTIAL DIAGNOSIS 4. FINAL WORKING DIAGNOSIS 5. MASTER TREATMENT PLAN 6. DDI & SAFETY ALERTS.
+                    DO NOT USE ANY MARKDOWN ASTERISKS (**). WRITE IN PLAIN TEXT ONLY.
+                    At the end, suggest 3 specific Medical Topics, formatted exactly:
+                    TOPICS: Topic 1, Topic 2, Topic 3
+                    """
+                    content_to_send = [prompt]
+                    if cam_pic: content_to_send.append(Image.open(cam_pic))
+                    if uploaded_files:
+                        for f in uploaded_files:
+                            if f.name.lower().endswith(('png', 'jpg', 'jpeg')): content_to_send.append(Image.open(f))
+
+                    response = client.models.generate_content(model='gemini-1.5-flash', contents=content_to_send)
+                    res_text = response.text.replace('**', '') 
                     
                     topics_list = []
                     if "TOPICS:" in res_text:
@@ -187,21 +200,23 @@ with tab1:
                         st.session_state[f"auto_topics_{p_name}"] = topics_list
 
                     st.success("✅ Analysis Complete!")
-                    st.text(res_text) # Displaying without markdown rendering
+                    st.text(res_text) 
                     
                     payload = {"action": "new_entry", "patient_name": p_name, "doctor": st.session_state.logged_in_doctor, "raw_notes": notes, "summary": res_text}
                     if WEBHOOK_URL.startswith("http"):
                         requests.post(WEBHOOK_URL, json=payload)
                         sync_from_cloud() 
                 except Exception as e:
-                    st.error(f"Error: {e}")
+                    error_msg = str(e)
+                    if "429" in error_msg:
+                        st.error("🚨 Limit Reached. Please use your Admin tab to update API key, or wait 1 minute.")
+                    else:
+                        st.error("🚨 System Error: Unable to process. Please check data.")
         else:
             st.warning("Please enter Patient Name and Notes.")
 
-    # 3. SMART AI GUIDELINES (ON-SCREEN + CUSTOM + PDF DOWNLOAD)
     st.markdown("---")
     st.subheader("📚 Quick Medical Guidelines Search")
-    
     col_g1, col_g2 = st.columns(2)
     with col_g1:
         auto_opts = st.session_state.get(f"auto_topics_{p_name}", [])
@@ -212,18 +227,19 @@ with tab1:
     final_topic = custom_topic if custom_topic else (selected_topic if selected_topic != "Choose..." else "")
 
     if st.button("📖 Read & Download Guideline"):
-        if final_topic:
+        if not client:
+             st.error("API Key missing!")
+        elif final_topic:
             with st.spinner(f"Fetching latest guidelines for {final_topic}..."):
-                guide_res = client.models.generate_content(model='gemini-2.5-flash', contents=[f"Provide a strict, professional ICU clinical guideline on: {final_topic}. DO NOT USE MARKDOWN ASTERISKS (**). Use plain text and numbering only."])
-                clean_guide = guide_res.text.replace('**', '')
-                
-                # Show on screen first
-                st.info(clean_guide)
-                
-                # Provide PDF Download right there
-                pdf_path = generate_true_pdf(f"GUIDELINE: {final_topic.upper()}", "Academic Reference", clean_guide)
-                with open(pdf_path, "rb") as pdf_file:
-                    st.download_button("📥 Download This Guideline as PDF", data=pdf_file, file_name=f"Guideline_{final_topic.replace(' ','_')}.pdf", mime="application/pdf")
+                try:
+                    guide_res = client.models.generate_content(model='gemini-1.5-flash', contents=[f"Provide a strict, professional ICU clinical guideline on: {final_topic}. DO NOT USE MARKDOWN ASTERISKS (**). Use plain text and numbering only."])
+                    clean_guide = guide_res.text.replace('**', '')
+                    st.info(clean_guide)
+                    pdf_path = generate_true_pdf(f"GUIDELINE: {final_topic.upper()}", "Academic Reference", clean_guide)
+                    with open(pdf_path, "rb") as pdf_file:
+                        st.download_button("📥 Download This Guideline as PDF", data=pdf_file, file_name=f"Guideline_{final_topic.replace(' ','_')}.pdf", mime="application/pdf")
+                except Exception as e:
+                    st.error("🚨 Connection Error. Limit reached or network issue.")
 
 # ---------------------------------------------------------
 # TAB 2: HOD DASHBOARD & A4 EDIT WINDOW
@@ -239,9 +255,7 @@ with tab2:
             with st.expander(f"🛏️ {pt_name} | Duty Dr: {pt_data['history'][-1]['doctor']}"):
                 latest = pt_data['history'][-1]
                 
-                # THE MASSIVE A4-SIZE HOD EDIT WINDOW (Height 600)
                 st.markdown("### 📝 Master HOD Editor")
-                st.caption("Review, add, or delete text below. It is in Plain Text (No stars) for a clean PDF print.")
                 edited_summary = st.text_area("Final Output & Remarks:", value=latest['summary'].replace('**', ''), height=600, key=f"edit_{pt_name}")
 
                 st.markdown("### 🖨️ Final PDF Generation")
@@ -255,23 +269,32 @@ with tab2:
 
                 with col2:
                     if st.button("📝 Discharge Summary PDF", key=f"disc_{pt_name}"):
-                        with st.spinner("Drafting Final Discharge..."):
-                            prompt = f"Write a final Discharge Summary with Hospital Course, Final Diagnosis, and Discharge Meds based on this data: {edited_summary}. DO NOT USE ANY MARKDOWN ASTERISKS (**). PLAIN TEXT ONLY."
-                            res = client.models.generate_content(model='gemini-2.5-flash', contents=[prompt])
-                            pdf_path = generate_true_pdf("DISCHARGE SUMMARY", pt_name, res.text.replace('**',''))
-                            with open(pdf_path, "rb") as pdf_file:
-                                st.download_button("📥 Download Discharge PDF", data=pdf_file, file_name=f"{pt_name}_Discharge.pdf", mime="application/pdf", key=f"dl_disc_{pt_name}")
+                        if not client: st.error("API Key missing!")
+                        else:
+                            with st.spinner("Drafting Final Discharge..."):
+                                try:
+                                    prompt = f"Write a final Discharge Summary based on this: {edited_summary}. DO NOT USE ANY MARKDOWN ASTERISKS (**). PLAIN TEXT ONLY."
+                                    res = client.models.generate_content(model='gemini-1.5-flash', contents=[prompt])
+                                    pdf_path = generate_true_pdf("DISCHARGE SUMMARY", pt_name, res.text.replace('**',''))
+                                    with open(pdf_path, "rb") as pdf_file:
+                                        st.download_button("📥 Download Discharge PDF", data=pdf_file, file_name=f"{pt_name}_Discharge.pdf", mime="application/pdf", key=f"dl_disc_{pt_name}")
+                                except Exception as e:
+                                    st.error("🚨 Engine is busy. Please try again.")
 
                 with col3:
                     if st.button("🗣️ Attendant Counseling", key=f"rel_{pt_name}"):
-                        with st.spinner("Translating to Hinglish..."):
-                            prompt = f"Based on: {edited_summary}. Write an ICU Patient Counseling Sheet for relatives in simple Hinglish. 4 Sections: 1. Bimari 2. Current Condition 3. Progress 4. Prognosis. NO MEDICAL JARGON. NO MARKDOWN ASTERISKS."
-                            res = client.models.generate_content(model='gemini-2.5-flash', contents=[prompt])
-                            pdf_path = generate_true_pdf("ICU ATTENDANT BRIEF", pt_name, res.text.replace('**',''))
-                            with open(pdf_path, "rb") as pdf_file:
-                                st.download_button("📥 Download Counseling PDF", data=pdf_file, file_name=f"{pt_name}_Counseling.pdf", mime="application/pdf", key=f"dl_rel_{pt_name}")
+                        if not client: st.error("API Key missing!")
+                        else:
+                            with st.spinner("Translating to Hinglish..."):
+                                try:
+                                    prompt = f"Based on: {edited_summary}. Write an ICU Patient Counseling Sheet for relatives in simple Hinglish. 4 Sections: 1. Bimari 2. Current Condition 3. Progress 4. Prognosis. NO MEDICAL JARGON. NO MARKDOWN ASTERISKS."
+                                    res = client.models.generate_content(model='gemini-1.5-flash', contents=[prompt])
+                                    pdf_path = generate_true_pdf("ICU ATTENDANT BRIEF", pt_name, res.text.replace('**',''))
+                                    with open(pdf_path, "rb") as pdf_file:
+                                        st.download_button("📥 Download Counseling PDF", data=pdf_file, file_name=f"{pt_name}_Counseling.pdf", mime="application/pdf", key=f"dl_rel_{pt_name}")
+                                except Exception as e:
+                                    st.error("🚨 Engine is busy. Please try again.")
 
-                # THE DISCHARGE & ARCHIVE BUTTON IS BACK
                 with col4:
                     if st.button("🛑 DISCHARGE & ARCHIVE", type="primary", key=f"done_{pt_name}"):
                         if WEBHOOK_URL.startswith("http"):
@@ -296,30 +319,37 @@ with tab3:
         
         st.markdown("---")
         if st.button("🔬 Analyze 48-Hour Clinical Trajectory", type="primary"):
-            with st.spinner("Analyzing historical trends..."):
-                full_history = "\n".join([f"[{e['date']}] {e['raw_notes']}" for e in history])
-                res = client.models.generate_content(model='gemini-2.5-flash', contents=[f"Analyze this patient's timeline: {full_history}. Tell me if they are deteriorating, stable, or improving based on vitals."])
-                st.warning(f"🤖 AI Trend Insight:\n\n{res.text}")
+            if not client: st.error("API Key missing!")
+            else:
+                with st.spinner("Analyzing historical trends..."):
+                    try:
+                        full_history = "\n".join([f"[{e['date']}] {e['raw_notes']}" for e in history])
+                        res = client.models.generate_content(model='gemini-1.5-flash', contents=[f"Analyze this patient's timeline: {full_history}. Tell me if they are deteriorating, stable, or improving based on vitals."])
+                        st.warning(f"🤖 AI Trend Insight:\n\n{res.text}")
+                    except Exception as e:
+                        st.error("🚨 Speed limit reached. Please wait and try again.")
 
 # ---------------------------------------------------------
-# TAB 4: THE ACADEMIC VAULT (Read First, Then Download)
+# TAB 4: THE ACADEMIC VAULT
 # ---------------------------------------------------------
 with tab4:
     st.header("🔬 The Academic Vault")
     topic = st.text_input("Search Clinical Topic (e.g., Post-MI Ventricular Arrhythmias):")
     
     if st.button("Generate Guideline to Read"):
-        if topic:
+        if not client: st.error("API Key missing!")
+        elif topic:
             with st.spinner("Researching latest protocols..."):
-                prompt = f"Write a detailed clinical guideline for {topic}. Include Pathophysiology, Diagnostics, and Pharmacological treatment. DO NOT USE MARKDOWN ASTERISKS (**). PLAIN TEXT ONLY."
-                res = client.models.generate_content(model='gemini-2.5-flash', contents=[prompt])
-                clean_text = res.text.replace('**', '')
-                
-                # Render to screen FIRST so the Doctor can read it
-                st.session_state['vault_guideline_text'] = clean_text
-                st.session_state['vault_guideline_topic'] = topic
+                try:
+                    prompt = f"Write a detailed clinical guideline for {topic}. Include Pathophysiology, Diagnostics, and Pharmacological treatment. DO NOT USE MARKDOWN ASTERISKS (**). PLAIN TEXT ONLY."
+                    res = client.models.generate_content(model='gemini-1.5-flash', contents=[prompt])
+                    clean_text = res.text.replace('**', '')
+                    
+                    st.session_state['vault_guideline_text'] = clean_text
+                    st.session_state['vault_guideline_topic'] = topic
+                except Exception as e:
+                    st.error("🚨 Engine is busy. Please try again.")
 
-    # If guideline is generated, show it and offer PDF download
     if 'vault_guideline_text' in st.session_state:
         st.markdown("### 📘 Reading Mode")
         st.info(st.session_state['vault_guideline_text'])
@@ -327,3 +357,22 @@ with tab4:
         pdf_path = generate_true_pdf("CLINICAL GUIDELINE", "The Academic Vault", st.session_state['vault_guideline_text'])
         with open(pdf_path, "rb") as pdf_file:
             st.download_button("📥 Save this Guideline to Offline Vault (PDF)", data=pdf_file, file_name=f"Guideline_{st.session_state['vault_guideline_topic'].replace(' ','_')}.pdf", mime="application/pdf")
+
+# ---------------------------------------------------------
+# TAB 5: SECRET ADMIN OVERRIDE (Dr. Gill ONLY)
+# ---------------------------------------------------------
+if is_admin:
+    with tabs[4]:
+        st.header("⚙️ Master Admin Console")
+        st.warning("🔒 **RESTRICTED AREA:** Only visible to Commander Gill. Other doctors cannot see this tab.")
+        st.markdown("Baar-baar GitHub kholne ki zaroorat nahi! Agar purani key ki limit khatam ho jaye, toh yahan seedha nayi API Key daaliye.")
+        
+        new_dynamic_key = st.text_input("🔑 Paste New Gemini API Key here:", type="password")
+        
+        if st.button("🚀 Update Engine Key", type="primary"):
+            if new_dynamic_key:
+                st.session_state.api_key = new_dynamic_key
+                st.success("✅ Master Engine API Key Updated Successfully for this session!")
+                st.rerun()
+            else:
+                st.error("Please paste a key first!")
