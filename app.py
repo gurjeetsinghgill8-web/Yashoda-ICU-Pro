@@ -24,7 +24,6 @@ if 'api_key' not in st.session_state:
 client = None
 if st.session_state.api_key:
     try:
-        # Extra spaces hataane ke liye .strip()
         clean_key = st.session_state.api_key.strip() 
         client = genai.Client(api_key=clean_key)
     except Exception as e:
@@ -170,7 +169,7 @@ with tab1:
         if not client:
             st.error("API Key is missing! Cannot analyze.")
         elif p_name and notes:
-            with st.spinner("Analyzing..."):
+            with st.spinner("Analyzing with Gemini 2.0 Flash..."):
                 try:
                     prompt = f"""
                     You are the Senior ICU Clinical AI. Patient: {p_name}. Notes: {notes}
@@ -185,7 +184,8 @@ with tab1:
                         for f in uploaded_files:
                             if f.name.lower().endswith(('png', 'jpg', 'jpeg')): content_to_send.append(Image.open(f))
 
-                    response = client.models.generate_content(model='gemini-1.5-flash', contents=content_to_send)
+                    # Updated to gemini-2.0-flash (The Latest Free & Fast Engine)
+                    response = client.models.generate_content(model='gemini-2.0-flash', contents=content_to_send)
                     res_text = response.text.replace('**', '') 
                     
                     topics_list = []
@@ -203,7 +203,6 @@ with tab1:
                         requests.post(WEBHOOK_URL, json=payload)
                         sync_from_cloud() 
                 except Exception as e:
-                    # YAHAN ASLI BIMARI CHHAPEGI!
                     st.error(f"🚨 RAW ERROR TRACE: {str(e)}")
         else:
             st.warning("Please enter Patient Name and Notes.")
@@ -225,14 +224,14 @@ with tab1:
         elif final_topic:
             with st.spinner(f"Fetching latest guidelines for {final_topic}..."):
                 try:
-                    guide_res = client.models.generate_content(model='gemini-1.5-flash', contents=[f"Provide a strict, professional ICU clinical guideline on: {final_topic}. DO NOT USE MARKDOWN ASTERISKS (**). Use plain text and numbering only."])
+                    # Updated to gemini-2.0-flash
+                    guide_res = client.models.generate_content(model='gemini-2.0-flash', contents=[f"Provide a strict, professional ICU clinical guideline on: {final_topic}. DO NOT USE MARKDOWN ASTERISKS (**). Use plain text and numbering only."])
                     clean_guide = guide_res.text.replace('**', '')
                     st.info(clean_guide)
                     pdf_path = generate_true_pdf(f"GUIDELINE: {final_topic.upper()}", "Academic Reference", clean_guide)
                     with open(pdf_path, "rb") as pdf_file:
                         st.download_button("📥 Download This Guideline as PDF", data=pdf_file, file_name=f"Guideline_{final_topic.replace(' ','_')}.pdf", mime="application/pdf")
                 except Exception as e:
-                    # YAHAN ASLI BIMARI CHHAPEGI!
                     st.error(f"🚨 RAW ERROR TRACE: {str(e)}")
 
 # ---------------------------------------------------------
@@ -268,7 +267,8 @@ with tab2:
                             with st.spinner("Drafting Final Discharge..."):
                                 try:
                                     prompt = f"Write a final Discharge Summary based on this: {edited_summary}. DO NOT USE ANY MARKDOWN ASTERISKS (**). PLAIN TEXT ONLY."
-                                    res = client.models.generate_content(model='gemini-1.5-flash', contents=[prompt])
+                                    # Updated to gemini-2.0-flash
+                                    res = client.models.generate_content(model='gemini-2.0-flash', contents=[prompt])
                                     pdf_path = generate_true_pdf("DISCHARGE SUMMARY", pt_name, res.text.replace('**',''))
                                     with open(pdf_path, "rb") as pdf_file:
                                         st.download_button("📥 Download Discharge PDF", data=pdf_file, file_name=f"{pt_name}_Discharge.pdf", mime="application/pdf", key=f"dl_disc_{pt_name}")
@@ -282,7 +282,8 @@ with tab2:
                             with st.spinner("Translating to Hinglish..."):
                                 try:
                                     prompt = f"Based on: {edited_summary}. Write an ICU Patient Counseling Sheet for relatives in simple Hinglish. 4 Sections: 1. Bimari 2. Current Condition 3. Progress 4. Prognosis. NO MEDICAL JARGON. NO MARKDOWN ASTERISKS."
-                                    res = client.models.generate_content(model='gemini-1.5-flash', contents=[prompt])
+                                    # Updated to gemini-2.0-flash
+                                    res = client.models.generate_content(model='gemini-2.0-flash', contents=[prompt])
                                     pdf_path = generate_true_pdf("ICU ATTENDANT BRIEF", pt_name, res.text.replace('**',''))
                                     with open(pdf_path, "rb") as pdf_file:
                                         st.download_button("📥 Download Counseling PDF", data=pdf_file, file_name=f"{pt_name}_Counseling.pdf", mime="application/pdf", key=f"dl_rel_{pt_name}")
@@ -318,7 +319,8 @@ with tab3:
                 with st.spinner("Analyzing historical trends..."):
                     try:
                         full_history = "\n".join([f"[{e['date']}] {e['raw_notes']}" for e in history])
-                        res = client.models.generate_content(model='gemini-1.5-flash', contents=[f"Analyze this patient's timeline: {full_history}. Tell me if they are deteriorating, stable, or improving based on vitals."])
+                        # Updated to gemini-2.0-flash
+                        res = client.models.generate_content(model='gemini-2.0-flash', contents=[f"Analyze this patient's timeline: {full_history}. Tell me if they are deteriorating, stable, or improving based on vitals."])
                         st.warning(f"🤖 AI Trend Insight:\n\n{res.text}")
                     except Exception as e:
                         st.error(f"🚨 RAW ERROR TRACE: {str(e)}")
@@ -336,7 +338,8 @@ with tab4:
             with st.spinner("Researching latest protocols..."):
                 try:
                     prompt = f"Write a detailed clinical guideline for {topic}. Include Pathophysiology, Diagnostics, and Pharmacological treatment. DO NOT USE MARKDOWN ASTERISKS (**). PLAIN TEXT ONLY."
-                    res = client.models.generate_content(model='gemini-1.5-flash', contents=[prompt])
+                    # Updated to gemini-2.0-flash
+                    res = client.models.generate_content(model='gemini-2.0-flash', contents=[prompt])
                     st.session_state['vault_guideline_text'] = res.text.replace('**', '')
                     st.session_state['vault_guideline_topic'] = topic
                 except Exception as e:
@@ -362,7 +365,6 @@ if is_admin:
         
         if st.button("🚀 Update Engine Key", type="primary"):
             if new_dynamic_key:
-                # Extra spaces ko strip kar dega taaki key galat na ho
                 st.session_state.api_key = new_dynamic_key.strip() 
                 st.success("✅ Master Engine API Key Updated Successfully! Go back to Tab 1 and test.")
             else:
