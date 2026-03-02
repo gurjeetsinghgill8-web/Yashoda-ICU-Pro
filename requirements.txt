@@ -1,0 +1,6 @@
+streamlit
+google-genai
+requests
+pandas
+plotly
+fpdf2
