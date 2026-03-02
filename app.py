@@ -3,15 +3,15 @@ from google import genai
 import os
 import requests
 import pandas as pd
-import plotly.graph_objects as go
 from fpdf import FPDF
 import tempfile
 import datetime
+from PIL import Image
 
 # ==========================================
 # 1. UI SETUP & CONFIGURATION
 # ==========================================
-st.set_page_config(page_title="Yashoda ICU Pro 8.0", layout="wide", page_icon="🏥")
+st.set_page_config(page_title="Yashoda ICU Pro - Master Edition", layout="wide", page_icon="🏥")
 
 # --- APNA GOOGLE SHEET URL YAHAN DALEIN ---
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwIBxF5vh7uvdDnRblpyhfpQCtpcxWN3MlGjbt3SUeEO5KH3c9AIcU91BzeKVQKCn_L/exec" 
@@ -38,7 +38,7 @@ if not st.session_state.logged_in_doctor:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.title("🔐 Yashoda ICU Security Portal")
-        st.info("Authorized Personnel Only")
+        st.info("Strict Medical Protocol Active. Enter PIN.")
         pin_input = st.text_input("Enter your 4-Digit PIN:", type="password", max_chars=4)
         if st.button("Login to Command Center", type="primary"):
             if pin_input in DOCTOR_PINS:
@@ -67,21 +67,21 @@ def sync_from_cloud():
                 if status == "Discharged": new_db[p_name]["status"] = "Discharged"
                 
                 new_db[p_name]["history"].append({
-                    "date": row.get("date", str(datetime.date.today())),
+                    "date": row.get("date", str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))),
                     "doctor": row.get("doctor", "Unknown"),
                     "raw_notes": row.get("raw_notes", ""),
                     "summary": row.get("summary", "")
                 })
             st.session_state.patients_db = new_db
     except Exception as e:
-        pass # Silent fail to avoid ugly UI errors
+        pass # Silent auto-sync
 
 if 'patients_db' not in st.session_state:
     st.session_state.patients_db = {}
-    sync_from_cloud() # Initial silent sync
+    sync_from_cloud() 
 
 def generate_true_pdf(title, patient_name, text_content):
-    """Converts AI output into a beautiful, clean Hospital PDF (Removes ** stars)"""
+    """Converts AI output into a clean Hospital Letterhead PDF (Removes ** stars)"""
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
@@ -93,16 +93,18 @@ def generate_true_pdf(title, patient_name, text_content):
     
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(0, 10, txt=title, ln=True, align='C')
+    
+    # STRICT HIERARCHY IN PDF
     pdf.set_font("Arial", 'B', 11)
-    pdf.cell(0, 8, txt=f"Patient Name: {patient_name} | Treating Doctor: {st.session_state.logged_in_doctor}", ln=True)
-    pdf.line(10, 50, 200, 50)
+    pdf.cell(0, 8, txt="Admitted Under: Dr. Alok Sehgal (HOD Cardiology)", ln=True)
+    pdf.cell(0, 8, txt=f"Attending/Duty Doctor: {st.session_state.logged_in_doctor}", ln=True)
+    pdf.cell(0, 8, txt=f"Patient Name: {patient_name} | Date: {datetime.date.today()}", ln=True)
+    pdf.line(10, 70, 200, 70)
     pdf.ln(5)
     
     pdf.set_font("Arial", size=11)
-    # Clean up markdown symbols for professional printing
+    # Clean formatting
     clean_text = text_content.replace('**', '').replace('*', '-').replace('#', '')
-    
-    # Handle Unicode characters by encoding
     clean_text = clean_text.encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 7, txt=clean_text)
     
@@ -114,17 +116,18 @@ def generate_true_pdf(title, patient_name, text_content):
 # ==========================================
 # 4. APP ARCHITECTURE (The 4 Master Tabs)
 # ==========================================
-st.sidebar.success(f"👨‍⚕️ Logged in as: **{st.session_state.logged_in_doctor}**")
+st.sidebar.success(f"👨‍⚕️ Logged in: **{st.session_state.logged_in_doctor}**")
+st.sidebar.markdown("**HOD:** Dr. Alok Sehgal")
 if st.sidebar.button("Logout"):
     st.session_state.logged_in_doctor = None
     st.rerun()
 
 st.title("🏥 Yashoda Cardiology: ICU Command Center Pro")
 
-tab1, tab2, tab3, tab4 = st.tabs(["🩺 ICU Frontline", "📊 HOD Dashboard & Docs", "📉 Vitals Radar", "🔬 Academic Vault"])
+tab1, tab2, tab3, tab4 = st.tabs(["🩺 ICU Frontline", "📊 HOD Dashboard & Docs", "📉 Flowsheet & Trends", "🔬 Academic Vault"])
 
 # ---------------------------------------------------------
-# TAB 1: THE ICU FRONTLINE (JUMBO EDIT & GUIDELINES)
+# TAB 1: THE ICU FRONTLINE (Jumbo Box & Camera)
 # ---------------------------------------------------------
 with tab1:
     st.header("Patient Triage & Clinical Entry")
@@ -137,172 +140,200 @@ with tab1:
         if patient_type == "New Admission":
             p_name = st.text_input("Enter New Patient Name:").strip().title()
         else:
-            active_patients = [name for name, data in st.session_state.patients_db.items() if data["status"] == "Active"]
-            p_name = st.selectbox("Select Existing Patient:", [""] + active_patients) if active_patients else ""
+            active_pts = [name for name, data in st.session_state.patients_db.items() if data["status"] == "Active"]
+            p_name = st.selectbox("Select Existing Patient:", [""] + active_pts) if active_pts else ""
 
     st.markdown("---")
     
-    # Vitals Input
-    col_v1, col_v2, col_v3, col_v4 = st.columns(4)
-    bp = col_v1.text_input("BP (e.g. 120/80)")
-    hr = col_v2.text_input("Heart Rate (bpm)")
-    spo2 = col_v3.text_input("SpO2 (%)")
-    sugar = col_v4.text_input("Blood Sugar/RBS")
+    # 1. THE JUMBO BOX
+    st.subheader("📝 Clinical Notes & Vitals (The Jumbo Window)")
+    st.info("💡 Tip: Press `Windows + H`. Dictate everything in one breath (e.g., 'Patient has chest pain, BP is 140/90, Sugar 200, HR 110'). AI will extract it all.")
+    notes = st.text_area("Dictate complete clinical picture here:", height=200)
 
-    # JUMBO EDIT WINDOW
-    st.subheader("📝 Clinical Notes & Dictation (Jumbo Window)")
-    st.info("💡 Tip: Press `Windows + H` to dictate notes directly here.")
-    notes = st.text_area("Enter History, Symptoms, and Current Meds:", height=250)
+    # 2. MULTI-PAGE LIVE CAMERA & UPLOAD
+    st.markdown("---")
+    st.subheader("📸 Attach ECG, X-Ray, or Lab Reports")
+    col_cam1, col_cam2 = st.columns(2)
+    with col_cam1:
+        st.write("**Option A: Live Camera** (Takes 1 photo at a time)")
+        cam_pic = st.camera_input("Take a photo of the report")
+    with col_cam2:
+        st.write("**Option B: Multi-Page Upload** (Select 5-6 photos from gallery/phone)")
+        uploaded_files = st.file_uploader("Upload images/PDFs", type=['jpg', 'jpeg', 'png', 'pdf'], accept_multiple_files=True)
 
-    # QUICK INLINE GUIDELINE BUTTON
-    with st.expander("📚 Quick Inline Guideline Search (For this patient)"):
-        quick_query = st.text_input("Type topic (e.g., 'Amiodarone dosing in VT')")
-        if st.button("Search Guideline"):
-            res = client.models.generate_content(model='gemini-2.5-flash', contents=[f"Brief clinical guideline on: {quick_query}. Keep it point-wise and action-oriented for an ICU doctor."])
-            st.info(res.text)
-
-    if st.button("🚨 Analyze Patient & Generate Treatment Plan", type="primary"):
+    if st.button("🚨 Analyze Patient & Generate Treatment Plan", type="primary", use_container_width=True):
         if p_name and notes:
-            with st.spinner("AI is analyzing DDx and Treatment Protocols..."):
+            with st.spinner("AI Medical Engine is analyzing the full clinical picture..."):
                 prompt = f"""
-                You are the ICU Clinical AI at Yashoda Cardiology.
+                You are the Senior ICU Clinical AI at Yashoda Cardiology.
                 Patient: {p_name}
-                Vitals: BP {bp}, HR {hr}, SpO2 {spo2}, Sugar {sugar}
-                Notes: {notes}
+                Raw Dictation (Extract Vitals & Symptoms from this): {notes}
                 
-                Provide a structured response:
-                1. CRITICAL ALERTS (If any based on vitals/notes)
-                2. DIFFERENTIAL DIAGNOSIS (DDx)
-                3. FINAL WORKING DIAGNOSIS
-                4. MASTER TREATMENT PLAN (Meds, Drips, Dosages)
-                5. DDI & SAFETY ALERTS (Drug interactions)
+                Provide a structured medical response:
+                1. EXTRACTED VITALS: (List BP, HR, SpO2, Sugar clearly)
+                2. CRITICAL ALERTS: (Highlight abnormal values in RED)
+                3. DIFFERENTIAL DIAGNOSIS (DDx):
+                4. FINAL WORKING DIAGNOSIS:
+                5. MASTER TREATMENT PLAN: (Meds, Drips, Dosages)
+                6. DDI & SAFETY ALERTS: (Drug interactions)
+                
+                Also, at the very end, suggest exactly 3 comma-separated specific Medical Topics/Guidelines related to this case, formatted exactly like this:
+                TOPICS: Topic 1, Topic 2, Topic 3
                 """
+                
+                content_to_send = [prompt]
+                if cam_pic: content_to_send.append(Image.open(cam_pic))
+                if uploaded_files:
+                    for f in uploaded_files:
+                        if f.name.lower().endswith(('png', 'jpg', 'jpeg')):
+                            content_to_send.append(Image.open(f))
+
                 try:
-                    response = client.models.generate_content(model='gemini-2.5-flash', contents=[prompt])
-                    st.success("✅ Analysis Complete!")
-                    st.markdown(response.text)
+                    response = client.models.generate_content(model='gemini-2.5-flash', contents=content_to_send)
                     
+                    # Smart Guidelines Extraction logic
+                    res_text = response.text
+                    topics_list = []
+                    if "TOPICS:" in res_text:
+                        split_text = res_text.split("TOPICS:")
+                        res_text = split_text[0].strip()
+                        topics_list = [t.strip() for t in split_text[1].split(",")]
+                        st.session_state[f"auto_topics_{p_name}"] = topics_list
+
+                    st.success("✅ Analysis Complete!")
+                    st.markdown(res_text)
+                    
+                    # Save to Cloud
                     payload = {
                         "action": "new_entry",
                         "patient_name": p_name,
                         "doctor": st.session_state.logged_in_doctor,
-                        "raw_notes": f"BP:{bp} HR:{hr} SpO2:{spo2} Sugar:{sugar} | Notes: {notes}",
-                        "summary": response.text
+                        "raw_notes": notes,
+                        "summary": res_text
                     }
                     if WEBHOOK_URL.startswith("http"):
                         requests.post(WEBHOOK_URL, json=payload)
-                        sync_from_cloud() # Auto Sync after save
+                        sync_from_cloud() 
                 except Exception as e:
                     st.error(f"Error: {e}")
         else:
-            st.warning("Enter Patient Name and Notes.")
+            st.warning("Please enter Patient Name and Notes.")
+
+    # 3. SMART AI GUIDELINES (ON-SCREEN DROPDOWN)
+    if p_name and f"auto_topics_{p_name}" in st.session_state and st.session_state[f"auto_topics_{p_name}"]:
+        st.markdown("---")
+        st.subheader("📚 Smart On-Screen Guidelines (Recommended by AI)")
+        selected_topic = st.selectbox("Select a topic to read right now:", ["Choose a topic..."] + st.session_state[f"auto_topics_{p_name}"])
+        
+        if selected_topic != "Choose a topic...":
+            with st.spinner(f"Loading latest guidelines for {selected_topic}..."):
+                guide_res = client.models.generate_content(model='gemini-2.5-flash', contents=[f"Provide a brief, strict ICU clinical guideline on: {selected_topic}."])
+                st.info(guide_res.text)
 
 # ---------------------------------------------------------
-# TAB 2: WIDE HOD DASHBOARD & THE 4-PILLAR COUNSELING
+# TAB 2: HOD DASHBOARD & A4 EDIT WINDOW
 # ---------------------------------------------------------
 with tab2:
-    st.header("Master Dashboard & PDF Generator")
+    st.header("Master Dashboard & PDF Generators")
     active_pts = {k: v for k, v in st.session_state.patients_db.items() if v["status"] == "Active"}
     
     if not active_pts:
-        st.info("Ward is empty or syncing...")
+        st.info("No active patients in the ICU.")
     else:
         for pt_name, pt_data in active_pts.items():
-            with st.expander(f"🛏️ {pt_name} | Last update by {pt_data['history'][-1]['doctor']}"):
+            with st.expander(f"🛏️ {pt_name} | Under: Dr. Alok Sehgal | Duty Dr: {pt_data['history'][-1]['doctor']}"):
                 latest = pt_data['history'][-1]
-                full_course = "".join([f"[{e['date']}] {e['raw_notes']}\n" for e in pt_data['history']])
                 
-                # HOD LIVE EDIT BOX
-                st.markdown("**Current AI Plan (Editable by HOD/Senior):**")
-                edited_summary = st.text_area("Edit Remarks/Treatment before PDF generation:", value=latest['summary'], height=150, key=f"edit_{pt_name}")
+                # THE A4-SIZE HOD EDIT WINDOW (Height 500)
+                st.markdown("### 📝 Master Edit Window (HOD & Senior Doctors)")
+                st.caption("Review and edit the AI's generated summary below before converting it into a PDF.")
+                edited_summary = st.text_area("Final Output & Remarks:", value=latest['summary'], height=500, key=f"edit_{pt_name}")
 
-                st.markdown("---")
-                st.markdown("### 🖨️ PDF Generation Engine")
-                col1, col2, col3 = st.columns(3)
+                st.markdown("### 🖨️ PDF Engine & Actions")
+                col1, col2, col3, col4 = st.columns(4)
                 
                 # 1. CASE SUMMARY
                 with col1:
                     if st.button("📄 Case Summary PDF", key=f"case_{pt_name}"):
-                        with st.spinner("Drafting PDF..."):
-                            prompt = f"Write a formal Medical Case Summary based on this: {edited_summary}. Do not use markdown stars."
-                            res = client.models.generate_content(model='gemini-2.5-flash', contents=[prompt])
-                            pdf_path = generate_true_pdf("INTERIM CASE SUMMARY", pt_name, res.text)
+                        with st.spinner("Drafting..."):
+                            pdf_path = generate_true_pdf("INTERIM CASE SUMMARY", pt_name, edited_summary)
                             with open(pdf_path, "rb") as pdf_file:
-                                st.download_button("📥 Download Summary PDF", data=pdf_file, file_name=f"{pt_name}_CaseSummary.pdf", mime="application/pdf", key=f"dl_case_{pt_name}")
+                                st.download_button("📥 Download Case PDF", data=pdf_file, file_name=f"{pt_name}_CaseSummary.pdf", mime="application/pdf", key=f"dl_case_{pt_name}")
 
                 # 2. DISCHARGE SUMMARY
                 with col2:
                     if st.button("📝 Discharge Summary PDF", key=f"disc_{pt_name}"):
-                        with st.spinner("Drafting PDF..."):
+                        with st.spinner("Drafting..."):
                             prompt = f"Write a final Discharge Summary with Hospital Course, Final Diagnosis, and Discharge Meds based on: {edited_summary}. No markdown stars."
                             res = client.models.generate_content(model='gemini-2.5-flash', contents=[prompt])
                             pdf_path = generate_true_pdf("DISCHARGE SUMMARY", pt_name, res.text)
                             with open(pdf_path, "rb") as pdf_file:
                                 st.download_button("📥 Download Discharge PDF", data=pdf_file, file_name=f"{pt_name}_Discharge.pdf", mime="application/pdf", key=f"dl_disc_{pt_name}")
 
-                # 3. RELATIVES COUNSELING SHEET (THE MASTERSTROKE)
+                # 3. COUNSELING SHEET (THE MASTERSTROKE)
                 with col3:
-                    if st.button("🗣️ Relatives Counseling Sheet", type="primary", key=f"rel_{pt_name}"):
-                        with st.spinner("Translating to simple Hinglish..."):
-                            prompt = f"""
-                            Based on this medical data: {edited_summary}
-                            Write a "Patient Counseling Sheet" for the patient's relatives in simple, comforting Hinglish (Hindi written in English alphabets).
-                            NO complex medical jargon.
-                            Divide exactly into 4 sections:
-                            1. Bimari (What exactly is the disease/problem)
-                            2. Current Condition (How is the patient right now in the ICU)
-                            3. Progress (Is there improvement compared to yesterday?)
-                            4. Prognosis (What is the future plan and risk level)
-                            """
+                    if st.button("🗣️ Attendant Counseling", key=f"rel_{pt_name}"):
+                        with st.spinner("Translating to Hinglish..."):
+                            prompt = f"Based on this: {edited_summary}. Write an ICU Patient Counseling Sheet for relatives in simple Hinglish. 4 Sections: 1. Bimari (Disease) 2. Current Condition 3. Progress 4. Prognosis. No medical jargon."
                             res = client.models.generate_content(model='gemini-2.5-flash', contents=[prompt])
-                            pdf_path = generate_true_pdf("ICU ATTENDANT BRIEF (Counseling Sheet)", pt_name, res.text)
+                            pdf_path = generate_true_pdf("ICU ATTENDANT BRIEF (Counseling)", pt_name, res.text)
                             with open(pdf_path, "rb") as pdf_file:
-                                st.download_button("📥 Download Attendant Brief PDF", data=pdf_file, file_name=f"{pt_name}_Counseling.pdf", mime="application/pdf", key=f"dl_rel_{pt_name}")
+                                st.download_button("📥 Download Counseling PDF", data=pdf_file, file_name=f"{pt_name}_Counseling.pdf", mime="application/pdf", key=f"dl_rel_{pt_name}")
+
+                # 4. DISCHARGE & ARCHIVE BUTTON
+                with col4:
+                    if st.button("🛑 DISCHARGE & ARCHIVE", type="primary", key=f"done_{pt_name}"):
+                        if WEBHOOK_URL.startswith("http"):
+                            requests.post(WEBHOOK_URL, json={"action": "discharge", "patient_name": pt_name})
+                            st.success(f"{pt_name} has been Discharged and Removed from Active Ward!")
+                            sync_from_cloud()
+                            st.rerun()
 
 # ---------------------------------------------------------
-# TAB 3: VISUAL VITALS RADAR
+# TAB 3: DIGITAL FLOWSHEET & AI TREND ANALYZER
 # ---------------------------------------------------------
 with tab3:
-    st.header("📉 Visual Vitals Radar")
-    st.info("Tracks the Systolic BP trend for the selected patient over their ICU stay.")
+    st.header("📉 Patient Flowsheet & AI Trend Analyzer")
     all_pts = list(st.session_state.patients_db.keys())
     
     if all_pts:
-        selected_pt = st.selectbox("Select Patient for Radar:", all_pts)
+        selected_pt = st.selectbox("Select Patient History:", all_pts)
         history = st.session_state.patients_db[selected_pt]['history']
         
-        dates = []
-        sys_bps = []
+        # 1. THE CHRONOLOGICAL FLOWSHEET (TABLE)
+        st.subheader("🕒 Chronological Digital Flowsheet")
+        flow_data = []
+        for entry in reversed(history):
+            flow_data.append({
+                "Date/Time": entry['date'],
+                "Duty Doctor": entry['doctor'],
+                "Raw Clinical Dictation": entry['raw_notes']
+            })
+        st.dataframe(pd.DataFrame(flow_data), use_container_width=True)
         
-        for entry in history:
-            # Simple extraction logic for BP from raw notes
-            notes = entry['raw_notes']
-            if "BP:" in notes:
-                try:
-                    bp_str = notes.split("BP:")[1].split()[0] # Gets e.g., "120/80"
-                    sys_bp = int(bp_str.split("/")[0])
-                    dates.append(entry['date'])
-                    sys_bps.append(sys_bp)
-                except: pass
+        # 2. THE AI TREND ANALYZER
+        st.markdown("---")
+        if st.button("🔬 Analyze 48-Hour Clinical Trajectory", type="primary"):
+            with st.spinner("AI is analyzing all historical notes to find trends..."):
+                full_history = "\n".join([f"[{e['date']}] {e['raw_notes']}" for e in history])
+                prompt = f"""
+                You are a Senior Critical Care Specialist analyzing an ICU patient's timeline.
+                Patient Data: {full_history}
                 
-        if len(sys_bps) > 1:
-            fig = go.Figure(data=go.Scatter(x=dates, y=sys_bps, mode='lines+markers', line=dict(color='red', width=3)))
-            fig.update_layout(title="Systolic BP Trend in ICU", xaxis_title="Timeline", yaxis_title="Systolic BP (mmHg)")
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # AI Trend Analysis
-            trend_prompt = f"Systolic BP readings over time: {sys_bps}. Write a 1-line trend analysis."
-            res = client.models.generate_content(model='gemini-2.5-flash', contents=[trend_prompt])
-            st.warning(f"🤖 AI Trend Insight: {res.text}")
-        else:
-            st.warning("Not enough BP data formatted correctly (e.g., BP: 120/80) to plot a chart yet.")
+                Write a highly professional "Clinical Trajectory Report".
+                Tell me if the patient is deteriorating, stable, or improving. 
+                Focus specifically on trends in BP, SpO2, and Sugar if mentioned.
+                """
+                res = client.models.generate_content(model='gemini-2.5-flash', contents=[prompt])
+                st.warning("🤖 AI Trend Insight:")
+                st.markdown(res.text)
 
 # ---------------------------------------------------------
 # TAB 4: THE ACADEMIC VAULT
 # ---------------------------------------------------------
 with tab4:
     st.header("🔬 The Academic Vault")
-    topic = st.text_input("Search Clinical Topic to Generate PDF Guideline (e.g., Post-MI Ventricular Arrhythmias):")
+    topic = st.text_input("Search Clinical Topic to Generate PDF Guideline:")
     
     if st.button("Generate & Download PDF Guideline"):
         if topic:
