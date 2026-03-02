@@ -16,10 +16,14 @@ st.set_page_config(page_title="Yashoda ICU Pro - Master", layout="wide", page_ic
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwIBxF5vh7uvdDnRblpyhfpQCtpcxWN3MlGjbt3SUeEO5KH3c9AIcU91BzeKVQKCn_L/exec" 
 
 # ==========================================
-# 2. DYNAMIC API KEY ENGINE
+# 2. DYNAMIC API KEY & ENGINE SELECTOR
 # ==========================================
 if 'api_key' not in st.session_state:
     st.session_state.api_key = os.getenv("GEMINI_API_KEY")
+
+if 'ai_model' not in st.session_state:
+    # Default engine jo high-limit aur fast hai
+    st.session_state.ai_model = 'gemini-1.5-flash-8b'
 
 client = None
 if st.session_state.api_key:
@@ -169,7 +173,7 @@ with tab1:
         if not client:
             st.error("API Key is missing! Cannot analyze.")
         elif p_name and notes:
-            with st.spinner("Analyzing with Gemini 1.5 Flash..."):
+            with st.spinner(f"Analyzing with {st.session_state.ai_model}..."):
                 try:
                     prompt = f"""
                     You are the Senior ICU Clinical AI. Patient: {p_name}. Notes: {notes}
@@ -184,8 +188,8 @@ with tab1:
                         for f in uploaded_files:
                             if f.name.lower().endswith(('png', 'jpg', 'jpeg')): content_to_send.append(Image.open(f))
 
-                    # 100% Back to gemini-1.5-flash!
-                    response = client.models.generate_content(model='gemini-1.5-flash', contents=content_to_send)
+                    # Engine wahi chalega jo Admin tab mein selected hai!
+                    response = client.models.generate_content(model=st.session_state.ai_model, contents=content_to_send)
                     res_text = response.text.replace('**', '') 
                     
                     topics_list = []
@@ -224,7 +228,7 @@ with tab1:
         elif final_topic:
             with st.spinner(f"Fetching latest guidelines for {final_topic}..."):
                 try:
-                    guide_res = client.models.generate_content(model='gemini-1.5-flash', contents=[f"Provide a strict, professional ICU clinical guideline on: {final_topic}. DO NOT USE MARKDOWN ASTERISKS (**). Use plain text and numbering only."])
+                    guide_res = client.models.generate_content(model=st.session_state.ai_model, contents=[f"Provide a strict, professional ICU clinical guideline on: {final_topic}. DO NOT USE MARKDOWN ASTERISKS (**). Use plain text and numbering only."])
                     clean_guide = guide_res.text.replace('**', '')
                     st.info(clean_guide)
                     pdf_path = generate_true_pdf(f"GUIDELINE: {final_topic.upper()}", "Academic Reference", clean_guide)
@@ -266,7 +270,7 @@ with tab2:
                             with st.spinner("Drafting Final Discharge..."):
                                 try:
                                     prompt = f"Write a final Discharge Summary based on this: {edited_summary}. DO NOT USE ANY MARKDOWN ASTERISKS (**). PLAIN TEXT ONLY."
-                                    res = client.models.generate_content(model='gemini-1.5-flash', contents=[prompt])
+                                    res = client.models.generate_content(model=st.session_state.ai_model, contents=[prompt])
                                     pdf_path = generate_true_pdf("DISCHARGE SUMMARY", pt_name, res.text.replace('**',''))
                                     with open(pdf_path, "rb") as pdf_file:
                                         st.download_button("📥 Download Discharge PDF", data=pdf_file, file_name=f"{pt_name}_Discharge.pdf", mime="application/pdf", key=f"dl_disc_{pt_name}")
@@ -280,7 +284,7 @@ with tab2:
                             with st.spinner("Translating to Hinglish..."):
                                 try:
                                     prompt = f"Based on: {edited_summary}. Write an ICU Patient Counseling Sheet for relatives in simple Hinglish. 4 Sections: 1. Bimari 2. Current Condition 3. Progress 4. Prognosis. NO MEDICAL JARGON. NO MARKDOWN ASTERISKS."
-                                    res = client.models.generate_content(model='gemini-1.5-flash', contents=[prompt])
+                                    res = client.models.generate_content(model=st.session_state.ai_model, contents=[prompt])
                                     pdf_path = generate_true_pdf("ICU ATTENDANT BRIEF", pt_name, res.text.replace('**',''))
                                     with open(pdf_path, "rb") as pdf_file:
                                         st.download_button("📥 Download Counseling PDF", data=pdf_file, file_name=f"{pt_name}_Counseling.pdf", mime="application/pdf", key=f"dl_rel_{pt_name}")
@@ -316,7 +320,7 @@ with tab3:
                 with st.spinner("Analyzing historical trends..."):
                     try:
                         full_history = "\n".join([f"[{e['date']}] {e['raw_notes']}" for e in history])
-                        res = client.models.generate_content(model='gemini-1.5-flash', contents=[f"Analyze this patient's timeline: {full_history}. Tell me if they are deteriorating, stable, or improving based on vitals."])
+                        res = client.models.generate_content(model=st.session_state.ai_model, contents=[f"Analyze this patient's timeline: {full_history}. Tell me if they are deteriorating, stable, or improving based on vitals."])
                         st.warning(f"🤖 AI Trend Insight:\n\n{res.text}")
                     except Exception as e:
                         st.error(f"🚨 RAW ERROR TRACE: {str(e)}")
@@ -334,7 +338,7 @@ with tab4:
             with st.spinner("Researching latest protocols..."):
                 try:
                     prompt = f"Write a detailed clinical guideline for {topic}. Include Pathophysiology, Diagnostics, and Pharmacological treatment. DO NOT USE MARKDOWN ASTERISKS (**). PLAIN TEXT ONLY."
-                    res = client.models.generate_content(model='gemini-1.5-flash', contents=[prompt])
+                    res = client.models.generate_content(model=st.session_state.ai_model, contents=[prompt])
                     st.session_state['vault_guideline_text'] = res.text.replace('**', '')
                     st.session_state['vault_guideline_topic'] = topic
                 except Exception as e:
@@ -356,11 +360,31 @@ if is_admin:
         st.header("⚙️ Master Admin Console")
         st.warning("🔒 **RESTRICTED AREA:** Only visible to Commander Gill.")
         
-        new_dynamic_key = st.text_input("🔑 Paste New Gemini API Key here:", type="password")
+        # NAYA FEATURE: Engine Selector!
+        st.markdown("### 🧠 1. Engine Control")
+        available_engines = [
+            "gemini-1.5-flash-8b",   # Super fast, high free limit (Default)
+            "gemini-1.5-flash-002",  # Stable specific version
+            "gemini-1.5-pro",        # VIP Engine (50 limit)
+            "gemini-2.0-flash",      # Latest engine (agar aage chal jaye)
+            "gemini-1.5-flash"       # Standard
+        ]
         
-        if st.button("🚀 Update Engine Key", type="primary"):
+        # Default index setup
+        default_index = available_engines.index(st.session_state.ai_model) if st.session_state.ai_model in available_engines else 0
+        
+        selected_model = st.selectbox("Select the AI Engine to use:", available_engines, index=default_index)
+        if st.button("🔄 Change Engine"):
+            st.session_state.ai_model = selected_model
+            st.success(f"✅ Engine successfully changed to: {selected_model}. Now go test in Tab 1!")
+            st.rerun()
+
+        st.markdown("---")
+        st.markdown("### 🔑 2. API Key Control")
+        new_dynamic_key = st.text_input("Paste New Gemini API Key here:", type="password")
+        if st.button("🚀 Update API Key", type="primary"):
             if new_dynamic_key:
                 st.session_state.api_key = new_dynamic_key.strip() 
-                st.success("✅ Master Engine API Key Updated Successfully! Go back to Tab 1 and test.")
+                st.success("✅ Master Engine API Key Updated Successfully!")
             else:
                 st.error("Please paste a key first!")
