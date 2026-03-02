@@ -11,7 +11,7 @@ from PIL import Image
 # ==========================================
 # 1. UI SETUP & CONFIGURATION
 # ==========================================
-st.set_page_config(page_title="Yashoda ICU Pro - Auto", layout="wide", page_icon="🏥", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Yashoda ICU Pro - Master", layout="wide", page_icon="🏥", initial_sidebar_state="collapsed")
 
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwIBxF5vh7uvdDnRblpyhfpQCtpcxWN3MlGjbt3SUeEO5KH3c9AIcU91BzeKVQKCn_L/exec" 
 
@@ -70,28 +70,29 @@ if not client:
     st.error("🚨 AI Engine API Key is missing! Please go to the '⚙️ Master Admin' tab to enter your API Key.")
 
 # ==========================================
-# 🧠 THE AUTO-PILOT ENGINE (Never Fails)
+# 🧠 THE AUTO-PILOT ENGINE (Typo Fixed)
 # ==========================================
 def smart_generate(client_obj, contents):
-    """Tries 5 different AI Engines automatically to bypass 404 and Quota errors."""
+    """Tries the exact, verified 3 AI Engines automatically to bypass errors."""
+    # SIRF YEH 3 ENGINES EXIST KARTE HAIN AUR FREE HAIN:
     models_to_try = [
-        'gemini-2.5-flash', 
-        'gemini-1.5-flash-002', 
+        'gemini-2.0-flash', 
         'gemini-1.5-flash', 
-        'gemini-2.0-flash-lite-preview-02-05',
-        'gemini-1.5-pro'
+        'gemini-1.5-flash-8b'
     ]
-    last_err = ""
+    
+    errors = []
     for m in models_to_try:
         try:
             res = client_obj.models.generate_content(model=m, contents=contents)
             if res and res.text:
                 return res.text.replace('**', '')
         except Exception as e:
-            last_err = str(e)
-            continue # Fail hua toh chupchap agle par shift ho jao
+            errors.append(f"[{m} FAILED]: {str(e)}")
+            continue # Fail hua toh agle engine par jump karo
     
-    raise Exception(f"All 5 Backup Engines Failed. Last Error: {last_err}")
+    # Agar teeno fail ho gaye, toh saaf-saaf wajah batao
+    raise Exception(f"All Engines Failed. Exact Reasons:\n" + "\n".join(errors))
 
 # ==========================================
 # 4. CLOUD SYNC & TRUE PDF ENGINE
@@ -208,7 +209,6 @@ with tab1:
                         for f in uploaded_files:
                             if f.name.lower().endswith(('png', 'jpg', 'jpeg')): content_to_send.append(Image.open(f))
 
-                    # 🚀 AUTO-PILOT CALLED HERE!
                     res_text = smart_generate(client, content_to_send)
                     
                     topics_list = []
@@ -226,7 +226,7 @@ with tab1:
                         requests.post(WEBHOOK_URL, json=payload)
                         sync_from_cloud() 
                 except Exception as e:
-                    st.error(f"🚨 Auto-Pilot Failed: {str(e)}")
+                    st.error(f"🚨 Auto-Pilot Error:\n{str(e)}")
         else:
             st.warning("Please enter Patient Name and Notes.")
 
@@ -254,7 +254,7 @@ with tab1:
                     with open(pdf_path, "rb") as pdf_file:
                         st.download_button("📥 Download This Guideline as PDF", data=pdf_file, file_name=f"Guideline_{final_topic.replace(' ','_')}.pdf", mime="application/pdf")
                 except Exception as e:
-                    st.error(f"🚨 Auto-Pilot Failed: {str(e)}")
+                    st.error(f"🚨 Auto-Pilot Error:\n{str(e)}")
 
 # ---------------------------------------------------------
 # TAB 2: HOD DASHBOARD & A4 EDIT WINDOW
@@ -294,7 +294,7 @@ with tab2:
                                     with open(pdf_path, "rb") as pdf_file:
                                         st.download_button("📥 Download Discharge PDF", data=pdf_file, file_name=f"{pt_name}_Discharge.pdf", mime="application/pdf", key=f"dl_disc_{pt_name}")
                                 except Exception as e:
-                                    st.error(f"🚨 Auto-Pilot Failed: {str(e)}")
+                                    st.error(f"🚨 Auto-Pilot Error:\n{str(e)}")
 
                 with col3:
                     if st.button("🗣️ Attendant Counseling", key=f"rel_{pt_name}"):
@@ -308,7 +308,7 @@ with tab2:
                                     with open(pdf_path, "rb") as pdf_file:
                                         st.download_button("📥 Download Counseling PDF", data=pdf_file, file_name=f"{pt_name}_Counseling.pdf", mime="application/pdf", key=f"dl_rel_{pt_name}")
                                 except Exception as e:
-                                    st.error(f"🚨 Auto-Pilot Failed: {str(e)}")
+                                    st.error(f"🚨 Auto-Pilot Error:\n{str(e)}")
 
                 with col4:
                     if st.button("🛑 DISCHARGE & ARCHIVE", type="primary", key=f"done_{pt_name}"):
@@ -343,7 +343,7 @@ with tab3:
                         res_text = smart_generate(client, [prompt])
                         st.warning(f"🤖 AI Trend Insight:\n\n{res_text}")
                     except Exception as e:
-                        st.error(f"🚨 Auto-Pilot Failed: {str(e)}")
+                        st.error(f"🚨 Auto-Pilot Error:\n{str(e)}")
 
 # ---------------------------------------------------------
 # TAB 4: THE ACADEMIC VAULT
@@ -362,7 +362,7 @@ with tab4:
                     st.session_state['vault_guideline_text'] = res_text
                     st.session_state['vault_guideline_topic'] = topic
                 except Exception as e:
-                    st.error(f"🚨 Auto-Pilot Failed: {str(e)}")
+                    st.error(f"🚨 Auto-Pilot Error:\n{str(e)}")
 
     if 'vault_guideline_text' in st.session_state:
         st.markdown("### 📘 Reading Mode")
@@ -385,6 +385,6 @@ if is_admin:
         if st.button("🚀 Update API Key", type="primary"):
             if new_dynamic_key:
                 st.session_state.api_key = new_dynamic_key.strip() 
-                st.success("✅ New Key Updated! Auto-Pilot will now handle the rest.")
+                st.success("✅ New Key Updated! Auto-Pilot is now armed with the correct engines.")
             else:
                 st.error("Please paste a key first!")
