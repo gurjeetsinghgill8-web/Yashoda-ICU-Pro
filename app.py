@@ -9,15 +9,14 @@ import datetime
 from PIL import Image
 
 # ==========================================
-# 1. UI SETUP & CONFIGURATION (No Sidebar)
+# 1. UI SETUP & CONFIGURATION
 # ==========================================
-st.set_page_config(page_title="Yashoda ICU Pro - Space Optimized", layout="wide", page_icon="🏥", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Yashoda ICU Pro - Master", layout="wide", page_icon="🏥", initial_sidebar_state="collapsed")
 
-# --- APNA GOOGLE SHEET URL YAHAN DALEIN ---
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwIBxF5vh7uvdDnRblpyhfpQCtpcxWN3MlGjbt3SUeEO5KH3c9AIcU91BzeKVQKCn_L/exec" 
 
 # ==========================================
-# 2. DYNAMIC API KEY (THE MASTER JUGAAD)
+# 2. DYNAMIC API KEY ENGINE
 # ==========================================
 if 'api_key' not in st.session_state:
     st.session_state.api_key = os.getenv("GEMINI_API_KEY")
@@ -25,12 +24,14 @@ if 'api_key' not in st.session_state:
 client = None
 if st.session_state.api_key:
     try:
-        client = genai.Client(api_key=st.session_state.api_key)
-    except Exception:
-        pass
+        # Extra spaces hataane ke liye .strip()
+        clean_key = st.session_state.api_key.strip() 
+        client = genai.Client(api_key=clean_key)
+    except Exception as e:
+        st.sidebar.error(f"Key Error: {e}")
 
 # ==========================================
-# 3. SECURITY & SMART ACCESS (PIN SYSTEM)
+# 3. SECURITY & SMART ACCESS
 # ==========================================
 DOCTOR_PINS = {
     "1234": "Dr. G.S. Gill (Cardiac Physician)",
@@ -45,7 +46,6 @@ if not st.session_state.logged_in_doctor:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.title("🔐 Yashoda ICU Security Portal")
-        st.info("Strict Medical Protocol Active. Enter PIN.")
         pin_input = st.text_input("Enter your 4-Digit PIN:", type="password", max_chars=4)
         if st.button("Login to Command Center", type="primary"):
             if pin_input in DOCTOR_PINS:
@@ -55,7 +55,6 @@ if not st.session_state.logged_in_doctor:
                 st.error("🚨 Invalid PIN! Access Denied.")
     st.stop()
 
-# --- TOP NAVIGATION BAR (Space Saver) ---
 col_head1, col_head2, col_head3 = st.columns([6, 3, 1])
 with col_head1:
     st.title("🏥 Yashoda Cardiology: ICU Command Center Pro")
@@ -69,7 +68,7 @@ with col_head3:
 st.markdown("---")
 
 if not client:
-    st.error("🚨 AI Engine API Key is missing! Dr. Gill, please go to the 'Master Admin' tab to enter a new key.")
+    st.error("🚨 AI Engine API Key is missing! Please go to the '⚙️ Master Admin' tab to enter your API Key.")
 
 # ==========================================
 # 4. CLOUD SYNC & TRUE PDF ENGINE
@@ -95,7 +94,7 @@ def sync_from_cloud():
                     "summary": row.get("summary", "")
                 })
             st.session_state.patients_db = new_db
-    except Exception as e:
+    except Exception:
         pass 
 
 if 'patients_db' not in st.session_state:
@@ -103,7 +102,6 @@ if 'patients_db' not in st.session_state:
     sync_from_cloud() 
 
 def generate_true_pdf(title, patient_name, text_content):
-    """Converts text into a clean Hospital Letterhead PDF (No Markdown Stars)"""
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
@@ -134,11 +132,9 @@ def generate_true_pdf(title, patient_name, text_content):
     return filepath
 
 # ==========================================
-# 5. APP ARCHITECTURE (Dynamic Tabs)
+# 5. APP ARCHITECTURE
 # ==========================================
 tab_titles = ["🩺 ICU Frontline", "📊 HOD Dashboard & Docs", "📉 Flowsheet & Trends", "🔬 Academic Vault"]
-
-# SECRET ADMIN CHECK: Only show 5th tab if it's Dr. Gill
 is_admin = (st.session_state.logged_in_doctor == "Dr. G.S. Gill (Cardiac Physician)")
 if is_admin:
     tab_titles.append("⚙️ Master Admin")
@@ -207,11 +203,8 @@ with tab1:
                         requests.post(WEBHOOK_URL, json=payload)
                         sync_from_cloud() 
                 except Exception as e:
-                    error_msg = str(e)
-                    if "429" in error_msg:
-                        st.error("🚨 Limit Reached. Please use your Admin tab to update API key, or wait 1 minute.")
-                    else:
-                        st.error("🚨 System Error: Unable to process. Please check data.")
+                    # YAHAN ASLI BIMARI CHHAPEGI!
+                    st.error(f"🚨 RAW ERROR TRACE: {str(e)}")
         else:
             st.warning("Please enter Patient Name and Notes.")
 
@@ -239,7 +232,8 @@ with tab1:
                     with open(pdf_path, "rb") as pdf_file:
                         st.download_button("📥 Download This Guideline as PDF", data=pdf_file, file_name=f"Guideline_{final_topic.replace(' ','_')}.pdf", mime="application/pdf")
                 except Exception as e:
-                    st.error("🚨 Connection Error. Limit reached or network issue.")
+                    # YAHAN ASLI BIMARI CHHAPEGI!
+                    st.error(f"🚨 RAW ERROR TRACE: {str(e)}")
 
 # ---------------------------------------------------------
 # TAB 2: HOD DASHBOARD & A4 EDIT WINDOW
@@ -279,7 +273,7 @@ with tab2:
                                     with open(pdf_path, "rb") as pdf_file:
                                         st.download_button("📥 Download Discharge PDF", data=pdf_file, file_name=f"{pt_name}_Discharge.pdf", mime="application/pdf", key=f"dl_disc_{pt_name}")
                                 except Exception as e:
-                                    st.error("🚨 Engine is busy. Please try again.")
+                                    st.error(f"🚨 RAW ERROR TRACE: {str(e)}")
 
                 with col3:
                     if st.button("🗣️ Attendant Counseling", key=f"rel_{pt_name}"):
@@ -293,7 +287,7 @@ with tab2:
                                     with open(pdf_path, "rb") as pdf_file:
                                         st.download_button("📥 Download Counseling PDF", data=pdf_file, file_name=f"{pt_name}_Counseling.pdf", mime="application/pdf", key=f"dl_rel_{pt_name}")
                                 except Exception as e:
-                                    st.error("🚨 Engine is busy. Please try again.")
+                                    st.error(f"🚨 RAW ERROR TRACE: {str(e)}")
 
                 with col4:
                     if st.button("🛑 DISCHARGE & ARCHIVE", type="primary", key=f"done_{pt_name}"):
@@ -327,7 +321,7 @@ with tab3:
                         res = client.models.generate_content(model='gemini-1.5-flash', contents=[f"Analyze this patient's timeline: {full_history}. Tell me if they are deteriorating, stable, or improving based on vitals."])
                         st.warning(f"🤖 AI Trend Insight:\n\n{res.text}")
                     except Exception as e:
-                        st.error("🚨 Speed limit reached. Please wait and try again.")
+                        st.error(f"🚨 RAW ERROR TRACE: {str(e)}")
 
 # ---------------------------------------------------------
 # TAB 4: THE ACADEMIC VAULT
@@ -343,12 +337,10 @@ with tab4:
                 try:
                     prompt = f"Write a detailed clinical guideline for {topic}. Include Pathophysiology, Diagnostics, and Pharmacological treatment. DO NOT USE MARKDOWN ASTERISKS (**). PLAIN TEXT ONLY."
                     res = client.models.generate_content(model='gemini-1.5-flash', contents=[prompt])
-                    clean_text = res.text.replace('**', '')
-                    
-                    st.session_state['vault_guideline_text'] = clean_text
+                    st.session_state['vault_guideline_text'] = res.text.replace('**', '')
                     st.session_state['vault_guideline_topic'] = topic
                 except Exception as e:
-                    st.error("🚨 Engine is busy. Please try again.")
+                    st.error(f"🚨 RAW ERROR TRACE: {str(e)}")
 
     if 'vault_guideline_text' in st.session_state:
         st.markdown("### 📘 Reading Mode")
@@ -364,15 +356,14 @@ with tab4:
 if is_admin:
     with tabs[4]:
         st.header("⚙️ Master Admin Console")
-        st.warning("🔒 **RESTRICTED AREA:** Only visible to Commander Gill. Other doctors cannot see this tab.")
-        st.markdown("Baar-baar GitHub kholne ki zaroorat nahi! Agar purani key ki limit khatam ho jaye, toh yahan seedha nayi API Key daaliye.")
+        st.warning("🔒 **RESTRICTED AREA:** Only visible to Commander Gill.")
         
         new_dynamic_key = st.text_input("🔑 Paste New Gemini API Key here:", type="password")
         
         if st.button("🚀 Update Engine Key", type="primary"):
             if new_dynamic_key:
-                st.session_state.api_key = new_dynamic_key
-                st.success("✅ Master Engine API Key Updated Successfully for this session!")
-                st.rerun()
+                # Extra spaces ko strip kar dega taaki key galat na ho
+                st.session_state.api_key = new_dynamic_key.strip() 
+                st.success("✅ Master Engine API Key Updated Successfully! Go back to Tab 1 and test.")
             else:
                 st.error("Please paste a key first!")
