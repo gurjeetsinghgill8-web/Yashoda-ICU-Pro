@@ -11,19 +11,15 @@ from PIL import Image
 # ==========================================
 # 1. UI SETUP & CONFIGURATION
 # ==========================================
-st.set_page_config(page_title="Yashoda ICU Pro - Master", layout="wide", page_icon="🏥", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Yashoda ICU Pro - Auto", layout="wide", page_icon="🏥", initial_sidebar_state="collapsed")
 
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwIBxF5vh7uvdDnRblpyhfpQCtpcxWN3MlGjbt3SUeEO5KH3c9AIcU91BzeKVQKCn_L/exec" 
 
 # ==========================================
-# 2. DYNAMIC API KEY & ENGINE SELECTOR
+# 2. DYNAMIC API KEY
 # ==========================================
 if 'api_key' not in st.session_state:
     st.session_state.api_key = os.getenv("GEMINI_API_KEY")
-
-if 'ai_model' not in st.session_state:
-    # Default engine jo high-limit aur fast hai
-    st.session_state.ai_model = 'gemini-1.5-flash-8b'
 
 client = None
 if st.session_state.api_key:
@@ -72,6 +68,30 @@ st.markdown("---")
 
 if not client:
     st.error("🚨 AI Engine API Key is missing! Please go to the '⚙️ Master Admin' tab to enter your API Key.")
+
+# ==========================================
+# 🧠 THE AUTO-PILOT ENGINE (Never Fails)
+# ==========================================
+def smart_generate(client_obj, contents):
+    """Tries 5 different AI Engines automatically to bypass 404 and Quota errors."""
+    models_to_try = [
+        'gemini-2.5-flash', 
+        'gemini-1.5-flash-002', 
+        'gemini-1.5-flash', 
+        'gemini-2.0-flash-lite-preview-02-05',
+        'gemini-1.5-pro'
+    ]
+    last_err = ""
+    for m in models_to_try:
+        try:
+            res = client_obj.models.generate_content(model=m, contents=contents)
+            if res and res.text:
+                return res.text.replace('**', '')
+        except Exception as e:
+            last_err = str(e)
+            continue # Fail hua toh chupchap agle par shift ho jao
+    
+    raise Exception(f"All 5 Backup Engines Failed. Last Error: {last_err}")
 
 # ==========================================
 # 4. CLOUD SYNC & TRUE PDF ENGINE
@@ -173,7 +193,7 @@ with tab1:
         if not client:
             st.error("API Key is missing! Cannot analyze.")
         elif p_name and notes:
-            with st.spinner(f"Analyzing with {st.session_state.ai_model}..."):
+            with st.spinner("Auto-Pilot is analyzing patient data..."):
                 try:
                     prompt = f"""
                     You are the Senior ICU Clinical AI. Patient: {p_name}. Notes: {notes}
@@ -188,9 +208,8 @@ with tab1:
                         for f in uploaded_files:
                             if f.name.lower().endswith(('png', 'jpg', 'jpeg')): content_to_send.append(Image.open(f))
 
-                    # Engine wahi chalega jo Admin tab mein selected hai!
-                    response = client.models.generate_content(model=st.session_state.ai_model, contents=content_to_send)
-                    res_text = response.text.replace('**', '') 
+                    # 🚀 AUTO-PILOT CALLED HERE!
+                    res_text = smart_generate(client, content_to_send)
                     
                     topics_list = []
                     if "TOPICS:" in res_text:
@@ -207,7 +226,7 @@ with tab1:
                         requests.post(WEBHOOK_URL, json=payload)
                         sync_from_cloud() 
                 except Exception as e:
-                    st.error(f"🚨 RAW ERROR TRACE: {str(e)}")
+                    st.error(f"🚨 Auto-Pilot Failed: {str(e)}")
         else:
             st.warning("Please enter Patient Name and Notes.")
 
@@ -226,16 +245,16 @@ with tab1:
         if not client:
              st.error("API Key missing!")
         elif final_topic:
-            with st.spinner(f"Fetching latest guidelines for {final_topic}..."):
+            with st.spinner(f"Auto-Pilot is fetching guidelines for {final_topic}..."):
                 try:
-                    guide_res = client.models.generate_content(model=st.session_state.ai_model, contents=[f"Provide a strict, professional ICU clinical guideline on: {final_topic}. DO NOT USE MARKDOWN ASTERISKS (**). Use plain text and numbering only."])
-                    clean_guide = guide_res.text.replace('**', '')
+                    prompt = f"Provide a strict, professional ICU clinical guideline on: {final_topic}. DO NOT USE MARKDOWN ASTERISKS (**). Use plain text and numbering only."
+                    clean_guide = smart_generate(client, [prompt])
                     st.info(clean_guide)
                     pdf_path = generate_true_pdf(f"GUIDELINE: {final_topic.upper()}", "Academic Reference", clean_guide)
                     with open(pdf_path, "rb") as pdf_file:
                         st.download_button("📥 Download This Guideline as PDF", data=pdf_file, file_name=f"Guideline_{final_topic.replace(' ','_')}.pdf", mime="application/pdf")
                 except Exception as e:
-                    st.error(f"🚨 RAW ERROR TRACE: {str(e)}")
+                    st.error(f"🚨 Auto-Pilot Failed: {str(e)}")
 
 # ---------------------------------------------------------
 # TAB 2: HOD DASHBOARD & A4 EDIT WINDOW
@@ -270,12 +289,12 @@ with tab2:
                             with st.spinner("Drafting Final Discharge..."):
                                 try:
                                     prompt = f"Write a final Discharge Summary based on this: {edited_summary}. DO NOT USE ANY MARKDOWN ASTERISKS (**). PLAIN TEXT ONLY."
-                                    res = client.models.generate_content(model=st.session_state.ai_model, contents=[prompt])
-                                    pdf_path = generate_true_pdf("DISCHARGE SUMMARY", pt_name, res.text.replace('**',''))
+                                    res_text = smart_generate(client, [prompt])
+                                    pdf_path = generate_true_pdf("DISCHARGE SUMMARY", pt_name, res_text)
                                     with open(pdf_path, "rb") as pdf_file:
                                         st.download_button("📥 Download Discharge PDF", data=pdf_file, file_name=f"{pt_name}_Discharge.pdf", mime="application/pdf", key=f"dl_disc_{pt_name}")
                                 except Exception as e:
-                                    st.error(f"🚨 RAW ERROR TRACE: {str(e)}")
+                                    st.error(f"🚨 Auto-Pilot Failed: {str(e)}")
 
                 with col3:
                     if st.button("🗣️ Attendant Counseling", key=f"rel_{pt_name}"):
@@ -284,12 +303,12 @@ with tab2:
                             with st.spinner("Translating to Hinglish..."):
                                 try:
                                     prompt = f"Based on: {edited_summary}. Write an ICU Patient Counseling Sheet for relatives in simple Hinglish. 4 Sections: 1. Bimari 2. Current Condition 3. Progress 4. Prognosis. NO MEDICAL JARGON. NO MARKDOWN ASTERISKS."
-                                    res = client.models.generate_content(model=st.session_state.ai_model, contents=[prompt])
-                                    pdf_path = generate_true_pdf("ICU ATTENDANT BRIEF", pt_name, res.text.replace('**',''))
+                                    res_text = smart_generate(client, [prompt])
+                                    pdf_path = generate_true_pdf("ICU ATTENDANT BRIEF", pt_name, res_text)
                                     with open(pdf_path, "rb") as pdf_file:
                                         st.download_button("📥 Download Counseling PDF", data=pdf_file, file_name=f"{pt_name}_Counseling.pdf", mime="application/pdf", key=f"dl_rel_{pt_name}")
                                 except Exception as e:
-                                    st.error(f"🚨 RAW ERROR TRACE: {str(e)}")
+                                    st.error(f"🚨 Auto-Pilot Failed: {str(e)}")
 
                 with col4:
                     if st.button("🛑 DISCHARGE & ARCHIVE", type="primary", key=f"done_{pt_name}"):
@@ -320,10 +339,11 @@ with tab3:
                 with st.spinner("Analyzing historical trends..."):
                     try:
                         full_history = "\n".join([f"[{e['date']}] {e['raw_notes']}" for e in history])
-                        res = client.models.generate_content(model=st.session_state.ai_model, contents=[f"Analyze this patient's timeline: {full_history}. Tell me if they are deteriorating, stable, or improving based on vitals."])
-                        st.warning(f"🤖 AI Trend Insight:\n\n{res.text}")
+                        prompt = f"Analyze this patient's timeline: {full_history}. Tell me if they are deteriorating, stable, or improving based on vitals."
+                        res_text = smart_generate(client, [prompt])
+                        st.warning(f"🤖 AI Trend Insight:\n\n{res_text}")
                     except Exception as e:
-                        st.error(f"🚨 RAW ERROR TRACE: {str(e)}")
+                        st.error(f"🚨 Auto-Pilot Failed: {str(e)}")
 
 # ---------------------------------------------------------
 # TAB 4: THE ACADEMIC VAULT
@@ -338,11 +358,11 @@ with tab4:
             with st.spinner("Researching latest protocols..."):
                 try:
                     prompt = f"Write a detailed clinical guideline for {topic}. Include Pathophysiology, Diagnostics, and Pharmacological treatment. DO NOT USE MARKDOWN ASTERISKS (**). PLAIN TEXT ONLY."
-                    res = client.models.generate_content(model=st.session_state.ai_model, contents=[prompt])
-                    st.session_state['vault_guideline_text'] = res.text.replace('**', '')
+                    res_text = smart_generate(client, [prompt])
+                    st.session_state['vault_guideline_text'] = res_text
                     st.session_state['vault_guideline_topic'] = topic
                 except Exception as e:
-                    st.error(f"🚨 RAW ERROR TRACE: {str(e)}")
+                    st.error(f"🚨 Auto-Pilot Failed: {str(e)}")
 
     if 'vault_guideline_text' in st.session_state:
         st.markdown("### 📘 Reading Mode")
@@ -360,31 +380,11 @@ if is_admin:
         st.header("⚙️ Master Admin Console")
         st.warning("🔒 **RESTRICTED AREA:** Only visible to Commander Gill.")
         
-        # NAYA FEATURE: Engine Selector!
-        st.markdown("### 🧠 1. Engine Control")
-        available_engines = [
-            "gemini-1.5-flash-8b",   # Super fast, high free limit (Default)
-            "gemini-1.5-flash-002",  # Stable specific version
-            "gemini-1.5-pro",        # VIP Engine (50 limit)
-            "gemini-2.0-flash",      # Latest engine (agar aage chal jaye)
-            "gemini-1.5-flash"       # Standard
-        ]
-        
-        # Default index setup
-        default_index = available_engines.index(st.session_state.ai_model) if st.session_state.ai_model in available_engines else 0
-        
-        selected_model = st.selectbox("Select the AI Engine to use:", available_engines, index=default_index)
-        if st.button("🔄 Change Engine"):
-            st.session_state.ai_model = selected_model
-            st.success(f"✅ Engine successfully changed to: {selected_model}. Now go test in Tab 1!")
-            st.rerun()
-
-        st.markdown("---")
-        st.markdown("### 🔑 2. API Key Control")
+        st.markdown("### 🔑 Add/Update Fresh API Key")
         new_dynamic_key = st.text_input("Paste New Gemini API Key here:", type="password")
         if st.button("🚀 Update API Key", type="primary"):
             if new_dynamic_key:
                 st.session_state.api_key = new_dynamic_key.strip() 
-                st.success("✅ Master Engine API Key Updated Successfully!")
+                st.success("✅ New Key Updated! Auto-Pilot will now handle the rest.")
             else:
                 st.error("Please paste a key first!")
