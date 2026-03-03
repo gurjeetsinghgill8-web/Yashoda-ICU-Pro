@@ -16,12 +16,14 @@ st.set_page_config(page_title="Yashoda ICU Pro - Master", layout="wide", page_ic
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwIBxF5vh7uvdDnRblpyhfpQCtpcxWN3MlGjbt3SUeEO5KH3c9AIcU91BzeKVQKCn_L/exec" 
 
 # ==========================================
-# 2. THE BULLETPROOF API KEY SETUP
+# 2. THE SECURE VAULT API KEY SETUP
 # ==========================================
-# 🚨 COMMANDER SIR: APNI NAYI KEY YAHAN IN INVERTED COMMAS (" ") KE BEECH DAALEIN:
-MY_API_KEY = "AIzaSyDdF8V89_xKWkgOhqRjEjLa_PQL4b0q8wY"
-
-active_key = MY_API_KEY.strip() if len(MY_API_KEY) > 20 else os.getenv("GEMINI_API_KEY", "").strip()
+# Code seedha Streamlit ki "Secrets Tijori" se key uthayega. GitHub par kuch nahi dikhega!
+active_key = ""
+if "GEMINI_API_KEY" in st.secrets:
+    active_key = st.secrets["GEMINI_API_KEY"]
+else:
+    active_key = os.getenv("GEMINI_API_KEY", "")
 
 is_engine_ready = False
 if active_key and active_key.startswith("AIza"):
@@ -31,7 +33,7 @@ if active_key and active_key.startswith("AIza"):
     except Exception as e:
         st.error(f"🚨 Key Config Error: {e}")
 else:
-    st.error("🚨 WARNING: Your API Key is MISSING or INVALID. Please check Line 23.")
+    st.error("🚨 WARNING: API Key is MISSING in Streamlit Secrets! Please add it in App Settings.")
 
 # ==========================================
 # 3. SECURITY & SMART ACCESS
@@ -71,7 +73,7 @@ with col_head3:
 st.markdown("---")
 
 if is_engine_ready:
-    st.sidebar.success("🟢 AI Engine ONLINE.")
+    st.sidebar.success("🟢 AI Engine ONLINE (Secured Mode).")
 
 # ==========================================
 # 📡 THE RADAR SCANNER ENGINE (100% NO 404)
@@ -79,7 +81,6 @@ if is_engine_ready:
 def smart_generate(contents):
     """Dynamically finds the best allowed model for your specific API key."""
     try:
-        # 1. Ask Google for the list of ACTUALLY allowed models
         allowed_models = []
         for m in genai.list_models():
             if 'generateContent' in m.supported_generation_methods:
@@ -88,17 +89,15 @@ def smart_generate(contents):
         if not allowed_models:
             raise Exception("Google API returned NO available models for this Key.")
 
-        # 2. Pick the best flash/pro model from their EXACT list
-        chosen_engine = allowed_models[0] # Fallback to whatever is first
+        chosen_engine = allowed_models[0] 
         priority_list = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-pro']
         
         for pref in priority_list:
             match = [m for m in allowed_models if pref in m]
             if match:
-                chosen_engine = match[0] # Exact name required by Google
+                chosen_engine = match[0] 
                 break
         
-        # 3. Run the analysis with the 100% verified engine name
         model = genai.GenerativeModel(chosen_engine)
         response = model.generate_content(contents)
         return response.text.replace('**', '')
@@ -394,4 +393,3 @@ with tab4:
         pdf_path = generate_true_pdf("CLINICAL GUIDELINE", "The Academic Vault", st.session_state['vault_guideline_text'])
         with open(pdf_path, "rb") as pdf_file:
             st.download_button("📥 Save this Guideline to Offline Vault (PDF)", data=pdf_file, file_name=f"Guideline_{st.session_state['vault_guideline_topic'].replace(' ','_')}.pdf", mime="application/pdf")
-# Force Reboot
