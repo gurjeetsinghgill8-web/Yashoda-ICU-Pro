@@ -18,7 +18,6 @@ WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwIBxF5vh7uvdDnRblpyhfpQC
 # ==========================================
 # 2. THE SECURE VAULT API KEY SETUP
 # ==========================================
-# Code seedha Streamlit ki "Secrets Tijori" se key uthayega. GitHub par kuch nahi dikhega!
 active_key = ""
 if "GEMINI_API_KEY" in st.secrets:
     active_key = st.secrets["GEMINI_API_KEY"]
@@ -33,7 +32,7 @@ if active_key and active_key.startswith("AIza"):
     except Exception as e:
         st.error(f"🚨 Key Config Error: {e}")
 else:
-    st.error("🚨 WARNING: API Key is MISSING in Streamlit Secrets! Please add it in App Settings.")
+    st.error("🚨 WARNING: API Key is MISSING in Streamlit Secrets!")
 
 # ==========================================
 # 3. SECURITY & SMART ACCESS
@@ -73,37 +72,34 @@ with col_head3:
 st.markdown("---")
 
 if is_engine_ready:
-    st.sidebar.success("🟢 AI Engine ONLINE (Secured Mode).")
+    st.sidebar.success("🟢 AI Engine ONLINE.")
 
 # ==========================================
-# 📡 THE RADAR SCANNER ENGINE (100% NO 404)
+# 🧠 THE TRUE AUTO-PILOT (Backup Loop Restored!)
 # ==========================================
 def smart_generate(contents):
-    """Dynamically finds the best allowed model for your specific API key."""
-    try:
-        allowed_models = []
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                allowed_models.append(m.name)
-        
-        if not allowed_models:
-            raise Exception("Google API returned NO available models for this Key.")
-
-        chosen_engine = allowed_models[0] 
-        priority_list = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-pro']
-        
-        for pref in priority_list:
-            match = [m for m in allowed_models if pref in m]
-            if match:
-                chosen_engine = match[0] 
-                break
-        
-        model = genai.GenerativeModel(chosen_engine)
-        response = model.generate_content(contents)
-        return response.text.replace('**', '')
-        
-    except Exception as e:
-        raise Exception(f"Radar Error: {str(e)}")
+    """Tries 1.5 Flash models one by one. If 429 Quota hits, it jumps to the next."""
+    # Strict 1.5 Models only (No 2.0 0-limit traps)
+    safe_models = [
+        'gemini-1.5-flash', 
+        'gemini-1.5-flash-8b', 
+        'gemini-1.5-pro'
+    ]
+    
+    errors = []
+    for m in safe_models:
+        try:
+            model = genai.GenerativeModel(m)
+            response = model.generate_content(contents)
+            if response and response.text:
+                return response.text.replace('**', '')
+        except Exception as e:
+            # Agar error aaya (jaise limit 0), error save karo aur agle engine par bhago!
+            errors.append(f"[{m} FAILED]: {str(e)}")
+            continue 
+            
+    # Agar teeno fail hue tabhi error dikhega
+    raise Exception(f"All Backup Engines Failed. Errors:\n" + "\n".join(errors))
 
 # ==========================================
 # 4. CLOUD SYNC & TRUE PDF ENGINE
@@ -201,7 +197,7 @@ with tab1:
         if not is_engine_ready:
             st.error("API Key is missing or invalid! Cannot analyze.")
         elif p_name and notes:
-            with st.spinner("Radar Scanner is finding the best engine & analyzing..."):
+            with st.spinner("Auto-Pilot is finding the safest engine & analyzing..."):
                 try:
                     prompt = f"""
                     You are the Senior ICU Clinical AI. Patient: {p_name}. Notes: {notes}
@@ -243,7 +239,7 @@ with tab1:
                         requests.post(WEBHOOK_URL, json=payload)
                         sync_from_cloud() 
                 except Exception as e:
-                    st.error(f"🚨 Radar Engine Error:\n{str(e)}")
+                    st.error(f"🚨 Auto-Pilot Error:\n{str(e)}")
         else:
             st.warning("Please enter Patient Name and Notes.")
 
