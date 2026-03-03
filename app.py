@@ -72,34 +72,48 @@ with col_head3:
 st.markdown("---")
 
 if is_engine_ready:
-    st.sidebar.success("🟢 AI Engine ONLINE.")
+    st.sidebar.success("🟢 Smart AI Engine ONLINE.")
 
 # ==========================================
-# 🧠 THE TRUE AUTO-PILOT (Backup Loop Restored!)
+# 📡 THE "ULTIMATE RADAR" ENGINE
 # ==========================================
 def smart_generate(contents):
-    """Tries 1.5 Flash models one by one. If 429 Quota hits, it jumps to the next."""
-    # Strict 1.5 Models only (No 2.0 0-limit traps)
-    safe_models = [
-        'gemini-1.5-flash', 
-        'gemini-1.5-flash-8b', 
-        'gemini-1.5-pro'
-    ]
-    
+    """Dynamically fetches ALL available models and tries them one by one."""
+    available_models = []
+    try:
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                available_models.append(m.name)
+    except Exception as e:
+        raise Exception(f"Failed to fetch model list from Google: {e}")
+
+    if not available_models:
+        raise Exception("Google API returned NO available models for this Key.")
+
+    # Sort to prioritize 1.5-flash, but push 2.0 to the back because of your 0 quota issue
+    def sort_key(model_name):
+        if '1.5-flash' in model_name and '8b' not in model_name: return 1
+        if '1.5-flash-8b' in model_name: return 2
+        if '1.5-pro' in model_name: return 3
+        if 'gemini-pro' in model_name: return 4
+        if '2.0-flash' in model_name: return 5 
+        return 99
+
+    available_models.sort(key=sort_key)
+
     errors = []
-    for m in safe_models:
+    for m_name in available_models:
         try:
-            model = genai.GenerativeModel(m)
+            model = genai.GenerativeModel(m_name)
             response = model.generate_content(contents)
             if response and response.text:
                 return response.text.replace('**', '')
         except Exception as e:
-            # Agar error aaya (jaise limit 0), error save karo aur agle engine par bhago!
-            errors.append(f"[{m} FAILED]: {str(e)}")
+            # Agar 404 ya 429 (0 limit) aata hai, toh usko list me daalo aur agle engine par bhago
+            errors.append(f"[{m_name.replace('models/', '')} FAILED]: {str(e)}")
             continue 
-            
-    # Agar teeno fail hue tabhi error dikhega
-    raise Exception(f"All Backup Engines Failed. Errors:\n" + "\n".join(errors))
+
+    raise Exception(f"All {len(available_models)} Dynamically Fetched Engines Failed. Errors:\n" + "\n".join(errors))
 
 # ==========================================
 # 4. CLOUD SYNC & TRUE PDF ENGINE
@@ -197,7 +211,7 @@ with tab1:
         if not is_engine_ready:
             st.error("API Key is missing or invalid! Cannot analyze.")
         elif p_name and notes:
-            with st.spinner("Auto-Pilot is finding the safest engine & analyzing..."):
+            with st.spinner("Smart Radar is scanning for an available engine..."):
                 try:
                     prompt = f"""
                     You are the Senior ICU Clinical AI. Patient: {p_name}. Notes: {notes}
@@ -239,7 +253,7 @@ with tab1:
                         requests.post(WEBHOOK_URL, json=payload)
                         sync_from_cloud() 
                 except Exception as e:
-                    st.error(f"🚨 Auto-Pilot Error:\n{str(e)}")
+                    st.error(f"🚨 Radar Engine Error:\n{str(e)}")
         else:
             st.warning("Please enter Patient Name and Notes.")
 
