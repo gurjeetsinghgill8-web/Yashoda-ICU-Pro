@@ -16,7 +16,7 @@ st.set_page_config(page_title="Yashoda ICU Pro - Master", layout="wide", page_ic
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwIBxF5vh7uvdDnRblpyhfpQCtpcxWN3MlGjbt3SUeEO5KH3c9AIcU91BzeKVQKCn_L/exec" 
 
 # ==========================================
-# 2. THE STABLE API KEY SETUP
+# 2. THE BULLETPROOF API KEY SETUP
 # ==========================================
 # 🚨 COMMANDER SIR: APNI NAYI KEY YAHAN IN INVERTED COMMAS (" ") KE BEECH DAALEIN:
 MY_API_KEY = "AIzaSyDdF8V89_xKWkgOhqRjEjLa_PQL4b0q8wY"
@@ -31,7 +31,7 @@ if active_key and active_key.startswith("AIza"):
     except Exception as e:
         st.error(f"🚨 Key Config Error: {e}")
 else:
-    st.error("🚨 WARNING: Your API Key is MISSING or INVALID. Please check Line 21.")
+    st.error("🚨 WARNING: Your API Key is MISSING or INVALID. Please check Line 23.")
 
 # ==========================================
 # 3. SECURITY & SMART ACCESS
@@ -71,26 +71,40 @@ with col_head3:
 st.markdown("---")
 
 if is_engine_ready:
-    st.sidebar.success("🟢 Stable AI Engine ONLINE.")
+    st.sidebar.success("🟢 AI Engine ONLINE.")
 
 # ==========================================
-# 🧠 THE STABLE AUTO-PILOT ENGINE
+# 📡 THE RADAR SCANNER ENGINE (100% NO 404)
 # ==========================================
 def smart_generate(contents):
-    """Uses the reliable google-generativeai SDK with the standard flash model."""
+    """Dynamically finds the best allowed model for your specific API key."""
     try:
-        # Rock solid 1.5-flash engine (1500 limit)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # 1. Ask Google for the list of ACTUALLY allowed models
+        allowed_models = []
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                allowed_models.append(m.name)
+        
+        if not allowed_models:
+            raise Exception("Google API returned NO available models for this Key.")
+
+        # 2. Pick the best flash/pro model from their EXACT list
+        chosen_engine = allowed_models[0] # Fallback to whatever is first
+        priority_list = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-pro']
+        
+        for pref in priority_list:
+            match = [m for m in allowed_models if pref in m]
+            if match:
+                chosen_engine = match[0] # Exact name required by Google
+                break
+        
+        # 3. Run the analysis with the 100% verified engine name
+        model = genai.GenerativeModel(chosen_engine)
         response = model.generate_content(contents)
         return response.text.replace('**', '')
+        
     except Exception as e:
-        try:
-            # Backup Engine
-            model_backup = genai.GenerativeModel('gemini-1.5-pro')
-            res = model_backup.generate_content(contents)
-            return res.text.replace('**', '')
-        except Exception as backup_e:
-            raise Exception(f"Primary Error: {e} \nBackup Error: {backup_e}")
+        raise Exception(f"Radar Error: {str(e)}")
 
 # ==========================================
 # 4. CLOUD SYNC & TRUE PDF ENGINE
@@ -188,7 +202,7 @@ with tab1:
         if not is_engine_ready:
             st.error("API Key is missing or invalid! Cannot analyze.")
         elif p_name and notes:
-            with st.spinner("Analyzing patient data safely..."):
+            with st.spinner("Radar Scanner is finding the best engine & analyzing..."):
                 try:
                     prompt = f"""
                     You are the Senior ICU Clinical AI. Patient: {p_name}. Notes: {notes}
@@ -207,7 +221,6 @@ with tab1:
                             if f.name.lower().endswith(('png', 'jpg', 'jpeg')): 
                                 content_to_send.append(Image.open(f))
                             elif f.name.lower().endswith('.pdf'):
-                                # Bulletproof PDF File API Upload
                                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
                                     tmp.write(f.read())
                                     tmp_path = tmp.name
@@ -231,7 +244,7 @@ with tab1:
                         requests.post(WEBHOOK_URL, json=payload)
                         sync_from_cloud() 
                 except Exception as e:
-                    st.error(f"🚨 Safe Engine Error:\n{str(e)}")
+                    st.error(f"🚨 Radar Engine Error:\n{str(e)}")
         else:
             st.warning("Please enter Patient Name and Notes.")
 
@@ -288,7 +301,7 @@ with tab2:
 
                 with col2:
                     if st.button("📝 Draft Discharge AI", key=f"btn_disc_{pt_name}"):
-                        if not is_engine_ready: st.error("API Key missing!")
+                        if not is_engine_ready: st.error("API Key missing or invalid!")
                         else:
                             with st.spinner("Drafting Final Discharge..."):
                                 try:
@@ -305,7 +318,7 @@ with tab2:
 
                 with col3:
                     if st.button("🗣️ Draft Counseling", key=f"btn_rel_{pt_name}"):
-                        if not is_engine_ready: st.error("API Key missing!")
+                        if not is_engine_ready: st.error("API Key missing or invalid!")
                         else:
                             with st.spinner("Translating to Hinglish..."):
                                 try:
@@ -344,7 +357,7 @@ with tab3:
         
         st.markdown("---")
         if st.button("🔬 Analyze 48-Hour Clinical Trajectory", type="primary"):
-            if not is_engine_ready: st.error("API Key missing!")
+            if not is_engine_ready: st.error("API Key missing or invalid!")
             else:
                 with st.spinner("Analyzing historical trends..."):
                     try:
@@ -363,7 +376,7 @@ with tab4:
     topic = st.text_input("Search Clinical Topic (e.g., Post-MI Ventricular Arrhythmias):")
     
     if st.button("Generate Guideline to Read"):
-        if not is_engine_ready: st.error("API Key missing!")
+        if not is_engine_ready: st.error("API Key missing or invalid!")
         elif topic:
             with st.spinner("Researching latest protocols..."):
                 try:
