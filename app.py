@@ -21,7 +21,7 @@ WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwIBxF5vh7uvdDnRblpyhfpQC
 # ==========================================
 # 🚨 COMMANDER SIR: APNI NAYI KEY YAHAN IN INVERTED COMMAS (" ") KE BEECH DAALEIN:
 # Dhyan rakhein ki key 'AIza...' se shuru ho!
-MY_API_KEY = "AIzaSyBFMhznVQ3n1mvktFvf6dXNf2u2PNGNO3A"
+MY_API_KEY = "AIzaSyDdF8V89_xKWkgOhqRjEjLa_PQL4b0q8wY"
 
 # Streamlit ki purani bhasad (cache) ko hamesha ke liye saaf karne ka logic:
 if MY_API_KEY != "PASTE_YOUR_NEW_KEY_HERE" and len(MY_API_KEY) > 20:
