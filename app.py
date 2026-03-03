@@ -394,3 +394,4 @@ with tab4:
         pdf_path = generate_true_pdf("CLINICAL GUIDELINE", "The Academic Vault", st.session_state['vault_guideline_text'])
         with open(pdf_path, "rb") as pdf_file:
             st.download_button("📥 Save this Guideline to Offline Vault (PDF)", data=pdf_file, file_name=f"Guideline_{st.session_state['vault_guideline_topic'].replace(' ','_')}.pdf", mime="application/pdf")
+# Force Reboot
