@@ -20,10 +20,9 @@ WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwIBxF5vh7uvdDnRblpyhfpQC
 # 2. THE BULLETPROOF API KEY SETUP
 # ==========================================
 # 🚨 COMMANDER SIR: APNI NAYI KEY YAHAN IN INVERTED COMMAS (" ") KE BEECH DAALEIN:
-# Dhyan rakhein ki key 'AIza...' se shuru ho!
 MY_API_KEY = "AIzaSyDdF8V89_xKWkgOhqRjEjLa_PQL4b0q8wY"
 
-# Streamlit ki purani bhasad (cache) ko hamesha ke liye saaf karne ka logic:
+# Ensure the key is loaded directly bypassing any memory cache
 if MY_API_KEY != "PASTE_YOUR_NEW_KEY_HERE" and len(MY_API_KEY) > 20:
     active_key = MY_API_KEY.strip()
 else:
@@ -32,7 +31,7 @@ else:
 client = None
 if active_key:
     if not active_key.startswith("AIza"):
-        st.error(f"🚨 WARNING: Your API Key seems INVALID! It should start with 'AIza'. Currently it starts with: '{active_key[:4]}...'")
+        st.error(f"🚨 WARNING: Your API Key seems INVALID! It should start with 'AIza'.")
     else:
         try:
             client = genai.Client(api_key=active_key)
@@ -77,19 +76,20 @@ with col_head3:
 st.markdown("---")
 
 if not client:
-    st.error("🚨 AI Engine is OFFLINE! Please insert a valid 'AIza...' API Key in Line 20 of your code.")
+    st.error("🚨 AI Engine is OFFLINE! Please insert a valid 'AIza...' API Key in Line 21 of your code.")
 else:
-    st.sidebar.success(f"🟢 AI Engine ONLINE. Key ends in: ...{active_key[-4:]}")
+    st.sidebar.success("🟢 AI Engine ONLINE.")
 
 # ==========================================
-# 🧠 THE AUTO-PILOT ENGINE
+# 🧠 THE AUTO-PILOT ENGINE (FIXED & TESTED)
 # ==========================================
 def smart_generate(client_obj, contents):
-    """Tries the exact, versioned AI Engines automatically."""
+    """Tries the exact, original AI Engines automatically."""
+    # 🚨 1.5-FLASH KO PEHLE RAKHA HAI KYAUNKI YEH 100% CHALTA HAI FREE MEIN
     models_to_try = [
-        'gemini-2.0-flash', 
-        'gemini-1.5-flash-002',      
-        'gemini-1.5-flash-8b-001'    
+        'gemini-1.5-flash',       # No suffixes, original name!
+        'gemini-1.5-flash-8b',    # Backup
+        'gemini-2.0-flash'        # Last try
     ]
     
     errors = []
