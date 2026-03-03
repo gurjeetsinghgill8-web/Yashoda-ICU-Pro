@@ -1,6 +1,6 @@
 import streamlit as st
 from google import genai
-from google.genai import types  # 🚨 NAYA IMPORT: AI ko PDF padhane ke liye!
+from google.genai import types  
 import os
 import requests
 import pandas as pd
@@ -17,9 +17,15 @@ st.set_page_config(page_title="Yashoda ICU Pro - Master", layout="wide", page_ic
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwIBxF5vh7uvdDnRblpyhfpQCtpcxWN3MlGjbt3SUeEO5KH3c9AIcU91BzeKVQKCn_L/exec" 
 
 # ==========================================
-# 2. DYNAMIC API KEY
+# 2. THE NUCLEAR API KEY FIX (HARDCODED)
 # ==========================================
-if 'api_key' not in st.session_state:
+# 🚨 SIR, APNI NAYI GMAIL WALI API KEY YAHAN IN INVERTED COMMAS (" ") KE BEECH DAALEIN:
+HARDCODED_API_KEY = "PASTE_YOUR_NEW_KEY_HERE"
+
+# Logic to force use the new key and bypass cache memory
+if HARDCODED_API_KEY != "AIzaSyBFMhznVQ3n1mvktFvf6dXNf2u2PNGNO3AE":
+    st.session_state.api_key = HARDCODED_API_KEY
+elif 'api_key' not in st.session_state or not st.session_state.api_key:
     st.session_state.api_key = os.getenv("GEMINI_API_KEY")
 
 client = None
@@ -68,17 +74,17 @@ with col_head3:
 st.markdown("---")
 
 if not client:
-    st.error("🚨 AI Engine API Key is missing! Please go to the '⚙️ Master Admin' tab to enter your API Key.")
+    st.error("🚨 AI Engine API Key is missing! Check Line 20 in your code.")
 
 # ==========================================
-# 🧠 THE AUTO-PILOT ENGINE
+# 🧠 THE AUTO-PILOT ENGINE (Version Tag Fixed)
 # ==========================================
 def smart_generate(client_obj, contents):
-    """Tries the exact, verified 3 AI Engines automatically to bypass errors."""
+    """Tries the exact, versioned AI Engines automatically."""
     models_to_try = [
         'gemini-2.0-flash', 
-        'gemini-1.5-flash', 
-        'gemini-1.5-flash-8b'
+        'gemini-1.5-flash-002',      # EXACT VERSION FIX
+        'gemini-1.5-flash-8b-001'    # EXACT VERSION FIX
     ]
     
     errors = []
@@ -89,7 +95,7 @@ def smart_generate(client_obj, contents):
                 return res.text.replace('**', '')
         except Exception as e:
             errors.append(f"[{m} FAILED]: {str(e)}")
-            continue
+            continue 
     
     raise Exception(f"All Engines Failed. Exact Reasons:\n" + "\n".join(errors))
 
@@ -207,13 +213,11 @@ with tab1:
                     if cam_pic: 
                         content_to_send.append(Image.open(cam_pic))
                     
-                    # 🚨 THE PDF SILENT IGNORE BUG FIX
                     if uploaded_files:
                         for f in uploaded_files:
                             if f.name.lower().endswith(('png', 'jpg', 'jpeg')): 
                                 content_to_send.append(Image.open(f))
                             elif f.name.lower().endswith('.pdf'):
-                                # Ab AI PDF reports ko bhi theek se padh lega!
                                 content_to_send.append(
                                     types.Part.from_bytes(data=f.read(), mime_type='application/pdf')
                                 )
@@ -285,9 +289,7 @@ with tab2:
                 st.markdown("### 🖨️ Final PDF Generation")
                 col1, col2, col3, col4 = st.columns(4)
                 
-                # 🚨 THE GHOST DOWNLOAD BUG FIX: Streamlit mein nested buttons hata diye!
                 with col1:
-                    # Direct generation allowed kyunki isme AI nahi lagta
                     pdf_path = generate_true_pdf("INTERIM CASE SUMMARY", pt_name, edited_summary)
                     with open(pdf_path, "rb") as pdf_file:
                         st.download_button("📄 Download Case PDF", data=pdf_file, file_name=f"{pt_name}_CaseSummary.pdf", mime="application/pdf", key=f"dl_case_{pt_name}")
@@ -303,8 +305,7 @@ with tab2:
                                     st.session_state[f"disc_ready_{pt_name}"] = res_text
                                 except Exception as e:
                                     st.error(f"🚨 Auto-Pilot Error:\n{str(e)}")
-                    
-                    # Pehle text background mein aayega, tab hi download button jagega aur gayab nahi hoga!
+                                    
                     if f"disc_ready_{pt_name}" in st.session_state:
                         pdf_path = generate_true_pdf("DISCHARGE SUMMARY", pt_name, st.session_state[f"disc_ready_{pt_name}"])
                         with open(pdf_path, "rb") as pdf_file:
@@ -397,11 +398,5 @@ if is_admin:
         st.header("⚙️ Master Admin Console")
         st.warning("🔒 **RESTRICTED AREA:** Only visible to Commander Gill.")
         
-        st.markdown("### 🔑 Add/Update Fresh API Key")
-        new_dynamic_key = st.text_input("Paste New Gemini API Key here:", type="password")
-        if st.button("🚀 Update API Key", type="primary"):
-            if new_dynamic_key:
-                st.session_state.api_key = new_dynamic_key.strip() 
-                st.success("✅ New Key Updated! Auto-Pilot is now armed with the correct engines.")
-            else:
-                st.error("Please paste a key first!")
+        st.markdown("### 🔑 Note on API Key")
+        st.info("API Key is now Hardcoded in the Code (Line 20) for maximum stability. To change it, update the `app.py` directly.")
