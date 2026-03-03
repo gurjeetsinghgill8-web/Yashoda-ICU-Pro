@@ -17,24 +17,27 @@ st.set_page_config(page_title="Yashoda ICU Pro - Master", layout="wide", page_ic
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwIBxF5vh7uvdDnRblpyhfpQCtpcxWN3MlGjbt3SUeEO5KH3c9AIcU91BzeKVQKCn_L/exec" 
 
 # ==========================================
-# 2. THE NUCLEAR API KEY FIX (HARDCODED)
+# 2. THE BULLETPROOF API KEY SETUP
 # ==========================================
-# 🚨 SIR, APNI NAYI GMAIL WALI API KEY YAHAN IN INVERTED COMMAS (" ") KE BEECH DAALEIN:
-HARDCODED_API_KEY = "PASTE_YOUR_NEW_KEY_HERE"
+# 🚨 COMMANDER SIR: APNI NAYI KEY YAHAN IN INVERTED COMMAS (" ") KE BEECH DAALEIN:
+# Dhyan rakhein ki key 'AIza...' se shuru ho!
+MY_API_KEY = "AIzaSyBFMhznVQ3n1mvktFvf6dXNf2u2PNGNO3A"
 
-# Logic to force use the new key and bypass cache memory
-if HARDCODED_API_KEY != "AIzaSyBFMhznVQ3n1mvktFvf6dXNf2u2PNGNO3AE":
-    st.session_state.api_key = HARDCODED_API_KEY
-elif 'api_key' not in st.session_state or not st.session_state.api_key:
-    st.session_state.api_key = os.getenv("GEMINI_API_KEY")
+# Streamlit ki purani bhasad (cache) ko hamesha ke liye saaf karne ka logic:
+if MY_API_KEY != "PASTE_YOUR_NEW_KEY_HERE" and len(MY_API_KEY) > 20:
+    active_key = MY_API_KEY.strip()
+else:
+    active_key = os.getenv("GEMINI_API_KEY", "").strip()
 
 client = None
-if st.session_state.api_key:
-    try:
-        clean_key = st.session_state.api_key.strip() 
-        client = genai.Client(api_key=clean_key)
-    except Exception as e:
-        st.sidebar.error(f"Key Error: {e}")
+if active_key:
+    if not active_key.startswith("AIza"):
+        st.error(f"🚨 WARNING: Your API Key seems INVALID! It should start with 'AIza'. Currently it starts with: '{active_key[:4]}...'")
+    else:
+        try:
+            client = genai.Client(api_key=active_key)
+        except Exception as e:
+            st.error(f"🚨 Key Initialization Error: {e}")
 
 # ==========================================
 # 3. SECURITY & SMART ACCESS
@@ -74,17 +77,19 @@ with col_head3:
 st.markdown("---")
 
 if not client:
-    st.error("🚨 AI Engine API Key is missing! Check Line 20 in your code.")
+    st.error("🚨 AI Engine is OFFLINE! Please insert a valid 'AIza...' API Key in Line 20 of your code.")
+else:
+    st.sidebar.success(f"🟢 AI Engine ONLINE. Key ends in: ...{active_key[-4:]}")
 
 # ==========================================
-# 🧠 THE AUTO-PILOT ENGINE (Version Tag Fixed)
+# 🧠 THE AUTO-PILOT ENGINE
 # ==========================================
 def smart_generate(client_obj, contents):
     """Tries the exact, versioned AI Engines automatically."""
     models_to_try = [
         'gemini-2.0-flash', 
-        'gemini-1.5-flash-002',      # EXACT VERSION FIX
-        'gemini-1.5-flash-8b-001'    # EXACT VERSION FIX
+        'gemini-1.5-flash-002',      
+        'gemini-1.5-flash-8b-001'    
     ]
     
     errors = []
@@ -97,7 +102,7 @@ def smart_generate(client_obj, contents):
             errors.append(f"[{m} FAILED]: {str(e)}")
             continue 
     
-    raise Exception(f"All Engines Failed. Exact Reasons:\n" + "\n".join(errors))
+    raise Exception(f"All Engines Failed.\n" + "\n".join(errors))
 
 # ==========================================
 # 4. CLOUD SYNC & TRUE PDF ENGINE
@@ -165,8 +170,6 @@ def generate_true_pdf(title, patient_name, text_content):
 # ==========================================
 tab_titles = ["🩺 ICU Frontline", "📊 HOD Dashboard & Docs", "📉 Flowsheet & Trends", "🔬 Academic Vault"]
 is_admin = (st.session_state.logged_in_doctor == "Dr. G.S. Gill (Cardiac Physician)")
-if is_admin:
-    tab_titles.append("⚙️ Master Admin")
 
 tabs = st.tabs(tab_titles)
 tab1, tab2, tab3, tab4 = tabs[0], tabs[1], tabs[2], tabs[3]
@@ -197,7 +200,7 @@ with tab1:
 
     if st.button("🚨 Analyze Patient & Generate Treatment Plan", type="primary", use_container_width=True):
         if not client:
-            st.error("API Key is missing! Cannot analyze.")
+            st.error("API Key is missing or invalid! Cannot analyze.")
         elif p_name and notes:
             with st.spinner("Auto-Pilot is analyzing patient data..."):
                 try:
@@ -256,7 +259,7 @@ with tab1:
 
     if st.button("📖 Read & Download Guideline"):
         if not client:
-             st.error("API Key missing!")
+             st.error("API Key missing or invalid!")
         elif final_topic:
             with st.spinner(f"Auto-Pilot is fetching guidelines for {final_topic}..."):
                 try:
@@ -296,7 +299,7 @@ with tab2:
 
                 with col2:
                     if st.button("📝 Draft Discharge AI", key=f"btn_disc_{pt_name}"):
-                        if not client: st.error("API Key missing!")
+                        if not client: st.error("API Key missing or invalid!")
                         else:
                             with st.spinner("Drafting Final Discharge..."):
                                 try:
@@ -313,7 +316,7 @@ with tab2:
 
                 with col3:
                     if st.button("🗣️ Draft Counseling", key=f"btn_rel_{pt_name}"):
-                        if not client: st.error("API Key missing!")
+                        if not client: st.error("API Key missing or invalid!")
                         else:
                             with st.spinner("Translating to Hinglish..."):
                                 try:
@@ -352,7 +355,7 @@ with tab3:
         
         st.markdown("---")
         if st.button("🔬 Analyze 48-Hour Clinical Trajectory", type="primary"):
-            if not client: st.error("API Key missing!")
+            if not client: st.error("API Key missing or invalid!")
             else:
                 with st.spinner("Analyzing historical trends..."):
                     try:
@@ -371,7 +374,7 @@ with tab4:
     topic = st.text_input("Search Clinical Topic (e.g., Post-MI Ventricular Arrhythmias):")
     
     if st.button("Generate Guideline to Read"):
-        if not client: st.error("API Key missing!")
+        if not client: st.error("API Key missing or invalid!")
         elif topic:
             with st.spinner("Researching latest protocols..."):
                 try:
@@ -389,14 +392,3 @@ with tab4:
         pdf_path = generate_true_pdf("CLINICAL GUIDELINE", "The Academic Vault", st.session_state['vault_guideline_text'])
         with open(pdf_path, "rb") as pdf_file:
             st.download_button("📥 Save this Guideline to Offline Vault (PDF)", data=pdf_file, file_name=f"Guideline_{st.session_state['vault_guideline_topic'].replace(' ','_')}.pdf", mime="application/pdf")
-
-# ---------------------------------------------------------
-# TAB 5: SECRET ADMIN OVERRIDE (Dr. Gill ONLY)
-# ---------------------------------------------------------
-if is_admin:
-    with tabs[4]:
-        st.header("⚙️ Master Admin Console")
-        st.warning("🔒 **RESTRICTED AREA:** Only visible to Commander Gill.")
-        
-        st.markdown("### 🔑 Note on API Key")
-        st.info("API Key is now Hardcoded in the Code (Line 20) for maximum stability. To change it, update the `app.py` directly.")
